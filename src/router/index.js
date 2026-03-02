@@ -34,6 +34,12 @@ const routes = [
     // *** RUTA PROTEGIDA ***
     meta: { requiresAuth: true },
   },  
+  {
+    path: '/create-profile',
+    name: 'createProfile',
+    component: () => import('@/views/CreateProfile.vue'),
+    meta: { requiresAuth: true, requiresProfile: false }
+  },
 ]
 
 export default createRouter({

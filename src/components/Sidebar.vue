@@ -30,7 +30,7 @@
         <!-- Opciones para usuarios autenticados -->
         <template v-else>
           <li>
-            <router-link :to="{ name: 'profile' }">
+            <router-link :to="authStore.hasProfile ? { name: 'profile' } : { name: 'createProfile' }" >
               👤 Mi Perfil
             </router-link>
           </li>
