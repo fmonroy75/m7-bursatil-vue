@@ -39,6 +39,12 @@
               🔓 Cerrar Sesión
             </a>
           </li>
+          <li>
+  <router-link to="/trading" class="nav-link">
+    <span class="icon">💹</span>
+    Trading
+  </router-link>
+</li>
         </template>
 
         <!-- Opciones comunes para todos -->

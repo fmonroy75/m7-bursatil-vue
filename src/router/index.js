@@ -40,6 +40,12 @@ const routes = [
     component: () => import('@/views/CreateProfile.vue'),
     meta: { requiresAuth: true, requiresProfile: false }
   },
+  {
+    path: '/trading',
+    name: 'trading',
+    component: () => import('@/views/TradingView.vue'),
+    meta: { requiresAuth: true, requiresProfile: false }
+  },
 ]
 
 export default createRouter({
