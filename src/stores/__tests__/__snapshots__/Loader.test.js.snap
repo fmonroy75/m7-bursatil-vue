@@ -1,0 +1,3 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Loader Component > debe coincidir con el snapshot 1`] = `"<div id="loader"> Cargando datos del mercado... </div>"`;
