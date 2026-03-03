@@ -5,7 +5,7 @@
     
     <!-- Mostrar información del usuario si está logueado -->
     <div v-if="authStore.isAuthenticated" class="user-info">
-      <span class="user-email">{{ displayEmail }}</span>
+      <!--<span class="user-email">{{ displayEmail }}</span>-->
       <span v-if="authStore.username" class="user-name">
         @{{ authStore.username }}
       </span>

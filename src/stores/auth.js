@@ -249,6 +249,7 @@ export const useAuthStore = defineStore('auth', {
     hasProfile: false, // Nuevo: indica si el usuario ya tiene perfil
     loading: false,
     error: null,
+    authInitialized: false,
   }),
   
   getters: {
@@ -262,8 +263,12 @@ export const useAuthStore = defineStore('auth', {
     // Inicializar listener de autenticación
     initAuthListener() {
       onAuthStateChanged(auth, async (user) => {
-        this.user = user
+        
+        console.log('Auth state changed:', user?.email)
+        this.$reset()
+        
         if (user) {
+          this.user = user
           sessionStorage.setItem('userEmail', user.email)
           // Verificar si existe perfil, pero no cargarlo automáticamente
           await this.checkUserProfile(user.uid)
@@ -403,12 +408,14 @@ export const useAuthStore = defineStore('auth', {
     async login(email, password) {
       this.loading = true
       this.error = null
+      this.$reset()
+      sessionStorage.removeItem('userEmail')
       try {
         const sanitizedEmail = sanitizeInput(email)
 
         const userCredential = await signInWithEmailAndPassword(auth, sanitizedEmail, password)
         this.user = userCredential.user
-        
+        console.log('accediendo' , userCredential.user)
         sessionStorage.setItem('userEmail', this.user.email)
         
         // Verificar si tiene perfil
@@ -434,6 +441,7 @@ export const useAuthStore = defineStore('auth', {
     // Logout
     async logout() {
       try {
+        this.$reset()
         await signOut(auth)
         this.user = null
         this.userProfile = null
@@ -449,5 +457,14 @@ export const useAuthStore = defineStore('auth', {
     listenToAuthChanges() {
       this.initAuthListener()
     },
+
+    $reset() {
+      this.user = null
+      this.userProfile = null
+      this.hasProfile = false
+      this.loading = false
+      this.error = null
+      
+    }
   },
 })
