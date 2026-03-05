@@ -1,0 +1,19 @@
+<!-- public/404.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Siulador bursatil</title>
+  <script>
+    // Guarda la ruta que causó el error 404 para restaurarla más tarde
+    sessionStorage.redirect = location.href;
+  </script>
+  <!-- Redirige inmediatamente a la raíz del sitio -->
+  <meta http-equiv="refresh" content="0;URL='/nombre-de-tu-repo/'">
+</head>
+<body>
+  <!-- Contenido mínimo por si la redirección no funciona -->
+  <p>Redirigiendo...</p>
+  <a href="/m7-bursatil-vue/">Haga clic aquí si no es redirigido automáticamente.</a>
+</body>
+</html>

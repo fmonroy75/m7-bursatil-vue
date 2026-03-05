@@ -22,6 +22,7 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [vue()],
+  base: '/m7-bursatil-vue/',
   test: {
     globals: true,
     environment: 'jsdom',
