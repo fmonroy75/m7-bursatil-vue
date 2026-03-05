@@ -46,7 +46,27 @@ const routes = [
     component: () => import('@/views/TradingView.vue'),
     meta: { requiresAuth: true, requiresProfile: false }
   },
-]
+
+  /*noticias*/
+  // router/index.js - Agregar nuevas rutas
+
+  {
+    path: '/news',
+    name: 'news',
+    component: () => import('@/views/NewsPage.vue')
+  },
+  {
+    path: '/news/:id',
+    name: 'newsDetail',
+    component: () => import('@/views/NewsDetail.vue')
+  },
+  {
+    path: '/news-history',
+    name: 'newsHistory',
+    component: () => import('@/views/NewsHistory.vue'),
+    meta: { requiresAuth: true }
+  }
+  ]
 
 export default createRouter({
   history: createWebHistory(),

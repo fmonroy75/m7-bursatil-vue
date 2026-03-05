@@ -45,7 +45,22 @@
     Trading
   </router-link>
 </li>
-        </template>
+<!--noticias-->
+<li>
+  <router-link to="/news" class="nav-link">
+    <span class="icon">📰</span>
+    Noticias
+  </router-link>
+</li>
+
+<!-- Para usuarios autenticados, agregar también -->
+<li >
+  <router-link to="/news-history" class="nav-link">
+    <span class="icon">📚</span>
+    Mi Historial
+  </router-link>
+</li>        
+</template>
 
         <!-- Opciones comunes para todos -->
         <li>
