@@ -11,6 +11,12 @@
           />
 
           <div class="card-body">
+            <!-- Mostrar indicador de noticia ya vista -->
+            <div v-if="authStore.isAuthenticated && wasViewed" class="alert alert-info mb-3">
+              <i class="bi bi-check-circle"></i> 
+              Ya habías visto esta noticia antes ({{ formatLastView }})
+            </div>
+
             <div class="d-flex justify-content-between align-items-center mb-3">
               <span class="badge" :class="getCategoryBadge(news.category)">{{
                 news.category
@@ -31,7 +37,7 @@
                 <i class="bi bi-person-circle"></i> Por {{ news.author || 'Autor Desconocido' }}
               </p>
               <p class="text-white-50">
-                <i class="bi bi-eye"></i> {{ news.views || 0 }} visualizaciones
+                <i class="bi bi-eye"></i> {{ news.views || 0 }} visualizaciones totales
               </p>
             </div>
 
@@ -95,68 +101,49 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-// CAMBIO: Eliminar import de historyStore
-// import { useHistoryStore } from '@/stores/history' ← ELIMINAR
-import { useNewsHistoryStore } from '@/stores/newsHistory' // ✅ USAR ESTE
+import { useNewsHistoryStore } from '@/stores/newsHistory'
 import { fetchNewsById, fetchComments, addComment } from '@/services/newsApi'
 import { sanitizeInput } from '@/utils/sanitize'
 import DOMPurify from 'dompurify'
 
 const route = useRoute()
 const authStore = useAuthStore()
-// const historyStore = useHistoryStore() ← ELIMINAR
-const newsHistoryStore = useNewsHistoryStore() // ✅ USAR ESTE
+const newsHistoryStore = useNewsHistoryStore()
 
 const news = ref(null)
 const comments = ref([])
 const newComment = ref('')
 const submitting = ref(false)
 
+// Verificar si la noticia ya fue vista por este usuario
+const wasViewed = computed(() => {
+  return newsHistoryStore.wasNewsViewed(route.params.id)
+})
+
+// Formatear última vista
+const formatLastView = computed(() => {
+  const lastView = newsHistoryStore.getLastViewDate(route.params.id)
+  if (lastView) {
+    return formatDate(lastView)
+  }
+  return ''
+})
+
 const loadNews = async () => {
   const data = await fetchNewsById(route.params.id)
   if (data) {
     news.value = data
 
-    // Add to recently viewed (localStorage)
-    addToRecentlyViewed(data)
-
-    // ✅ REGISTRAR VISTA SI EL USUARIO ESTÁ LOGUEADO (Firestore)
+    // Registrar vista SOLO si el usuario está autenticado
     if (authStore.isAuthenticated) {
       await newsHistoryStore.trackNewsView(data.id, data.title, data.category)
     }
 
     // Load comments
     loadComments()
-  }
-}
-
-// Función para guardar en localStorage (vistas recientes)
-const addToRecentlyViewed = (news) => {
-  try {
-    const saved = localStorage.getItem('recentlyViewed')
-    let recent = saved ? JSON.parse(saved) : []
-    
-    // Agregar al inicio
-    recent.unshift({
-      id: Date.now(),
-      type: 'view',
-      product: {
-        id: news.id,
-        title: news.title,
-        category: news.category
-      },
-      timestamp: new Date().toISOString()
-    })
-    
-    // Mantener solo últimos 10
-    recent = recent.slice(0, 10)
-    
-    localStorage.setItem('recentlyViewed', JSON.stringify(recent))
-  } catch (e) {
-    console.error('Error saving to recently viewed:', e)
   }
 }
 
@@ -214,7 +201,13 @@ const sanitizeContent = (content) => {
   return DOMPurify.sanitize(content)
 }
 
+// Cargar historial cuando el usuario se autentica
 onMounted(() => {
   loadNews()
+  
+  // Si el usuario está autenticado, aseguramos que el historial esté cargado
+  if (authStore.isAuthenticated && newsHistoryStore.viewedNews.length === 0) {
+    newsHistoryStore.loadUserHistory()
+  }
 })
 </script>

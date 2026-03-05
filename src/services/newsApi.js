@@ -7,16 +7,18 @@ import {
   getDoc,
   doc,
   query,
+  where,
   orderBy,
   limit,
   Timestamp,
-  writeBatch
+  writeBatch,
+  updateDoc // Añadir updateDoc para incrementar views
 } from 'firebase/firestore'
 
 const NEWS_API_KEY = import.meta.env.VITE_NEWS_API_KEY
 const NEWS_API_URL = import.meta.env.VITE_NEWS_API_URL
 
-// Categorías de NewsAPI (limitadas pero ampliamos con búsquedas por keywords)
+// Categorías de NewsAPI
 const NEWS_API_CATEGORIES = [
   'business',      // → Empresas, Economía, Mercados
   'technology',    // → Tecnología
@@ -24,22 +26,18 @@ const NEWS_API_CATEGORIES = [
   'health',        // → Salud
   'entertainment', // → Entretenimiento
   'sports',        // → Deportes*/
-  'markets',
   'general'        // → General
 ]
 
-// Términos de búsqueda para categorías específicas que no existen en NewsAPI
+// Términos de búsqueda para categorías específicas
 const CATEGORY_KEYWORDS = {
   'Economía': ['economy', 'economics', 'inflation', 'gdp', 'interest rates', 'federal reserve', 'banco central'],
   'Política': ['politics', 'government', 'congress', 'senate', 'election', 'policy', 'legislation'],
   'Empresas': ['business', 'corporation', 'company', 'earnings', 'merger', 'acquisition', 'ceo', 'corporate']
 }
 
-// Mapeo ampliado de categorías
+// Mapeo de categorías
 const categoryMapping = {
-  // Mapeo directo de categorías de API
-  
-  'Mercados': 'business',
   'business': 'Empresas',
   'technology': 'Tecnología',
   /*'science': 'Ciencia',
@@ -47,29 +45,23 @@ const categoryMapping = {
   'entertainment': 'Entretenimiento',
   'sports': 'Deportes',*/
   'general': 'General',
-  
-  // Mapeo por palabras clave (se asignará después del análisis)
   'economy': 'Economía',
   'politics': 'Política',
-  'Mercados': 'markets',
   'markets': 'Mercados'
 }
 
-// Detectar categoría por contenido (título y descripción)
+// Detectar categoría por contenido
 const detectCategoryByContent = (title, description) => {
   const text = `${title} ${description || ''}`.toLowerCase()
   
-  // Verificar Economía
   if (CATEGORY_KEYWORDS['Economía'].some(keyword => text.includes(keyword.toLowerCase()))) {
     return 'Economía'
   }
   
-  // Verificar Política
   if (CATEGORY_KEYWORDS['Política'].some(keyword => text.includes(keyword.toLowerCase()))) {
     return 'Política'
   }
   
-  // Verificar Empresas (si no es economía específicamente)
   if (CATEGORY_KEYWORDS['Empresas'].some(keyword => text.includes(keyword.toLowerCase()))) {
     return 'Empresas'
   }
@@ -77,11 +69,12 @@ const detectCategoryByContent = (title, description) => {
   return null
 }
 
+// ============= FUNCIONES DE NOTICIAS =============
+
 export const fetchNews = async () => {
   try {
     console.log('📰 Verificando noticias en Firestore...')
     
-    // Verificar si ya tenemos noticias recientes (últimas 24 horas)
     const oneDayAgo = new Date()
     oneDayAgo.setDate(oneDayAgo.getDate() - 1)
     
@@ -89,7 +82,6 @@ export const fetchNews = async () => {
     const recentQuery = query(newsRef, orderBy('publishedAt', 'desc'), limit(1))
     const recentSnapshot = await getDocs(recentQuery)
     
-    // Si hay noticias recientes, usarlas
     if (!recentSnapshot.empty) {
       const latestNews = recentSnapshot.docs[0].data()
       const latestDate = latestNews.publishedAt?.toDate?.() || new Date(latestNews.publishedAt)
@@ -132,10 +124,7 @@ export const fetchNews = async () => {
           data.articles.forEach((article, index) => {
             if (!article.title || article.title === '[Removed]') return
             
-            // Determinar categoría final
             let finalCategory = categoryMapping[category] || 'General'
-            
-            // Intentar detectar categoría más específica por contenido
             const detectedCategory = detectCategoryByContent(article.title, article.description)
             if (detectedCategory) {
               finalCategory = detectedCategory
@@ -163,7 +152,6 @@ export const fetchNews = async () => {
           })
         }
         
-        // Pequeña pausa para no exceder límites de API
         await new Promise(resolve => setTimeout(resolve, 500))
         
       } catch (catError) {
@@ -171,12 +159,11 @@ export const fetchNews = async () => {
       }
     }
     
-    // Búsquedas adicionales por palabras clave para categorías específicas
+    // Búsquedas adicionales por palabras clave
     console.log('🔍 Realizando búsquedas por palabras clave...')
     
     for (const [catName, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
       try {
-        // Usar solo la primera palabra clave para no exceder límites
         const keyword = keywords[0]
         console.log(`🔎 Buscando noticias de ${catName} con keyword: ${keyword}`)
         
@@ -191,7 +178,6 @@ export const fetchNews = async () => {
             data.articles.forEach((article, index) => {
               if (!article.title || article.title === '[Removed]') return
               
-              // Evitar duplicados (por URL)
               if (allNews.some(n => n.url === article.url)) return
               
               const newsId = `news_${Date.now()}_keyword_${index}`
@@ -224,12 +210,10 @@ export const fetchNews = async () => {
       }
     }
     
-    // Guardar todas las noticias en Firestore
     if (allNews.length > 0) {
       await batch.commit()
       console.log(`✅ ${allNews.length} noticias guardadas en Firestore`)
       
-      // Estadísticas por categoría
       const stats = {}
       allNews.forEach(item => {
         stats[item.category] = (stats[item.category] || 0) + 1
@@ -241,6 +225,121 @@ export const fetchNews = async () => {
     
   } catch (error) {
     console.error('Error fetching news:', error)
+    return []
+  }
+}
+
+export const fetchNewsById = async (newsId) => {
+  try {
+    const docRef = doc(db, 'news', newsId)
+    const docSnap = await getDoc(docRef)
+    
+    if (docSnap.exists()) {
+      const data = docSnap.data()
+      
+      // Incrementar contador de vistas
+      await updateDoc(docRef, {
+        views: (data.views || 0) + 1
+      })
+      
+      return {
+        id: docSnap.id,
+        ...data,
+        publishedAt: data.publishedAt?.toDate?.() || data.publishedAt
+      }
+    }
+    return null
+  } catch (error) {
+    console.error('Error fetching news by id:', error)
+    return null
+  }
+}
+
+// ============= FUNCIONES DE COMENTARIOS =============
+
+export const fetchComments = async (newsId) => {
+  try {
+    const commentsRef = collection(db, 'comments')
+    const q = query(
+      commentsRef,
+      where('newsId', '==', newsId),
+      orderBy('createdAt', 'desc')
+    )
+    
+    const snapshot = await getDocs(q)
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt
+    }))
+  } catch (error) {
+    console.error('Error fetching comments:', error)
+    return []
+  }
+}
+
+export const addComment = async (newsId, comment) => {
+  try {
+    const docRef = await addDoc(collection(db, 'comments'), {
+      newsId,
+      ...comment,
+      createdAt: Timestamp.now()
+    })
+    
+    return { success: true, id: docRef.id }
+  } catch (error) {
+    console.error('Error adding comment:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+// ============= FUNCIONES AUXILIARES =============
+
+export const getNewsByCategory = async (category) => {
+  try {
+    const newsRef = collection(db, 'news')
+    const q = query(
+      newsRef,
+      where('category', '==', category),
+      orderBy('publishedAt', 'desc'),
+      limit(20)
+    )
+    
+    const snapshot = await getDocs(q)
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      publishedAt: doc.data().publishedAt?.toDate?.() || doc.data().publishedAt
+    }))
+  } catch (error) {
+    console.error('Error fetching news by category:', error)
+    return []
+  }
+}
+
+export const searchNews = async (searchTerm) => {
+  try {
+    // Nota: Firestore no soporta búsqueda de texto completo nativamente
+    // Esta es una implementación simple, para búsqueda avanzada considera Algolia o MeiliSearch
+    const newsRef = collection(db, 'news')
+    const snapshot = await getDocs(newsRef)
+    
+    const results = snapshot.docs
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        publishedAt: doc.data().publishedAt?.toDate?.() || doc.data().publishedAt
+      }))
+      .filter(item => 
+        item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.summary.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+      .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
+      .slice(0, 20)
+    
+    return results
+  } catch (error) {
+    console.error('Error searching news:', error)
     return []
   }
 }

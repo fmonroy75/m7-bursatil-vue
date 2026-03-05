@@ -60,6 +60,7 @@
     Mi Historial
   </router-link>
 </li>        
+
 </template>
 
         <!-- Opciones comunes para todos -->

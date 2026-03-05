@@ -65,6 +65,12 @@ const routes = [
     name: 'newsHistory',
     component: () => import('@/views/NewsHistory.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/news-history',
+    name: 'newsHistory',
+    component: () => import('@/views/NewsHistoryPage.vue'),
+    meta: { requiresAuth: true } // Solo usuarios autenticados
   }
   ]
 

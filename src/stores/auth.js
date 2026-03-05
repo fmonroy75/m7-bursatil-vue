@@ -264,7 +264,7 @@ export const useAuthStore = defineStore('auth', {
     initAuthListener() {
       onAuthStateChanged(auth, async (user) => {
         
-        console.log('Auth state changed:', user?.email)
+        //console.log('Auth state changed:', user?.email)
         this.$reset()
         
         if (user) {
