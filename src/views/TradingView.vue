@@ -6,7 +6,10 @@
           <h2>💹 Trading de Activos</h2>
           <span class="subtitle">Compra y vende acciones en tiempo real</span>
         </div>
-        
+      <!-- Balance Card -->
+      <div v-if="canTrade" class="balance-wrapper">
+        <BalanceCard :preciosActuales="preciosActuales" />
+      </div>        
         <!-- Resumen de cartera si está autenticado y tiene perfil -->
         <div v-if="authStore.isAuthenticated && authStore.hasProfile" class="portfolio-summary">
           <div class="stats-card">
@@ -158,24 +161,17 @@
       </Transition>
   
       <!-- Cartera actual (solo para usuarios con perfil) -->
-      <div v-if="canTrade && activosEnCartera.length > 0" class="portfolio-section">
-        <h3>📁 Mi Cartera</h3>
-        <div class="portfolio-grid">
-          <div v-for="activo in activosEnCartera" :key="activo.id" class="portfolio-card">
-            <div class="portfolio-header">
-              <strong>{{ activo.nombre }}</strong>
-              <span class="portfolio-symbol">{{ activo.simbolo.toUpperCase() }}</span>
-            </div>
-            <div class="portfolio-body">
-              <div class="portfolio-detail">
-                <span>Cantidad:</span>
-                <span class="detail-value">{{ activo.cantidad }} acciones</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-  
+      <div v-if="canTrade" class="portfolio-section mt-4">
+      <PortfolioCard
+        :activosEnCartera="activosEnCartera"
+        :preciosActuales="preciosActuales"
+        :historialTransacciones="tradingStore.transacciones"
+        @refresh="actualizarPrecios"
+        @buy="abrirModalCompra"
+        @sell="abrirModalVenta"
+        @history="verHistorialActivo"
+      />
+    </div>  
       <!-- Historial de transacciones (solo para usuarios con perfil) -->
       <div v-if="canTrade" class="history-section">
         <h3>📜 Historial de Transacciones</h3>
@@ -215,185 +211,226 @@
   </template>
   
   <script setup>
-  import { ref, computed, onMounted, watch } from 'vue'
-  import { useAuthStore } from '@/stores/auth'
-  import { useTradingStore } from '@/stores/trading'
-  import Loader from '../components/Loader.vue'
-  import FilterInput from '../components/FilterInput.vue'
-  
-  const authStore = useAuthStore()
-  const tradingStore = useTradingStore()
-  
-  // Datos de mercado
-  const datos = ref([])
-  const loading = ref(false)
-  const filtro = ref('')
-  const ultimaActualizacion = ref('—')
-  
-  // Modal
-  const modalVisible = ref(false)
-  const modalTipo = ref('buy') // 'buy' o 'sell'
-  const assetSeleccionado = ref(null)
-  const cantidad = ref(0.01)
-  const errorMessage = ref('')
-  
-  // Computed
-  const canTrade = computed(() => {
-    return authStore.isAuthenticated && authStore.hasProfile
-  })
-  
-  const accionesDisponibles = computed(() => {
-    if (!assetSeleccionado.value) return 0
-    return tradingStore.cantidadActivo(assetSeleccionado.value.id)
-  })
-  
-  const maxCantidad = computed(() => {
-    if (modalTipo.value === 'buy') {
-      return 1000000 // Sin límite superior para compras
-    } else {
-      return accionesDisponibles.value
-    }
-  })
-  
-  const cantidadValida = computed(() => {
-    const cant = parseFloat(cantidad.value)
-    return !isNaN(cant) && cant > 0 && cant <= maxCantidad.value
-  })
-  
-  const calcularTotal = computed(() => {
-    return (parseFloat(cantidad.value) || 0) * (assetSeleccionado.value?.current_price || 0)
-  })
-  
-  const modalTitulo = computed(() => {
-    return modalTipo.value === 'buy' ? 'Comprar' : 'Vender'
-  })
-  
-  const activosEnCartera = computed(() => {
-    return tradingStore.activosEnCartera
-  })
-  
-  // Funciones
-  const cargarDatos = async () => {
-    loading.value = true
-    try {
-      const response = await fetch(
-        'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1&sparkline=false'
-      )
-      datos.value = await response.json()
-      ultimaActualizacion.value = new Date().toLocaleString()
-    } catch (error) {
-      console.error('Error cargando datos:', error)
-    } finally {
-      loading.value = false
-    }
+
+
+import { ref, computed, onMounted, watch } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+import { useTradingStore } from '@/stores/trading'
+import Loader from '../components/Loader.vue'
+import FilterInput from '../components/FilterInput.vue'
+import BalanceCard from '@/components/BalanceCard.vue'
+import PortfolioCard from '@/components/PortfolioCard.vue'
+
+const authStore = useAuthStore()
+const tradingStore = useTradingStore()
+
+// Datos de mercado
+const datos = ref([])
+const loading = ref(false)
+const filtro = ref('')
+const ultimaActualizacion = ref('—')
+
+// Mapa de precios actuales (NUEVO)
+const preciosActuales = ref({})
+
+// Modal
+const modalVisible = ref(false)
+const modalTipo = ref('buy')
+const assetSeleccionado = ref(null)
+const cantidad = ref(0.01)
+const errorMessage = ref('')
+
+// Computed
+const canTrade = computed(() => {
+  return authStore.isAuthenticated && authStore.hasProfile
+})
+
+const accionesDisponibles = computed(() => {
+  if (!assetSeleccionado.value) return 0
+  return tradingStore.cantidadActivo(assetSeleccionado.value.id)
+})
+
+const maxCantidad = computed(() => {
+  if (modalTipo.value === 'buy') {
+    return 1000000
+  } else {
+    return accionesDisponibles.value
   }
-  
-  const datosFiltrados = computed(() =>
-    datos.value.filter(c =>
-      c.name.toLowerCase().includes(filtro.value.toLowerCase()) ||
-      c.symbol.toLowerCase().includes(filtro.value.toLowerCase())
+})
+
+const cantidadValida = computed(() => {
+  const cant = parseFloat(cantidad.value)
+  return !isNaN(cant) && cant > 0 && cant <= maxCantidad.value
+})
+
+const calcularTotal = computed(() => {
+  return (parseFloat(cantidad.value) || 0) * (assetSeleccionado.value?.current_price || 0)
+})
+
+const modalTitulo = computed(() => {
+  return modalTipo.value === 'buy' ? 'Comprar' : 'Vender'
+})
+
+const activosEnCartera = computed(() => {
+  return tradingStore.activosEnCartera
+})
+
+// Funciones
+const cargarDatos = async () => {
+  loading.value = true
+  try {
+    const response = await fetch(
+      'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1&sparkline=false'
     )
+    datos.value = await response.json()
+    ultimaActualizacion.value = new Date().toLocaleString()
+    
+    // ACTUALIZAR MAPA DE PRECIOS
+    actualizarMapaPrecios(datos.value)
+    
+  } catch (error) {
+    console.error('Error cargando datos:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+// NUEVA FUNCIÓN: Actualizar mapa de precios
+const actualizarMapaPrecios = (datos) => {
+  const nuevoMapa = {}
+  datos.forEach(item => {
+    // Guardar por ID (ej: 'bitcoin')
+    nuevoMapa[item.id] = item.current_price
+    // Guardar por símbolo (ej: 'btc')
+    nuevoMapa[item.symbol] = item.current_price
+    // Guardar por símbolo en mayúsculas (ej: 'BTC')
+    nuevoMapa[item.symbol.toUpperCase()] = item.current_price
+    // Guardar por nombre (ej: 'Bitcoin')
+    nuevoMapa[item.name] = item.current_price
+  })
+  preciosActuales.value = nuevoMapa
+  console.log('💰 Precios actualizados:', preciosActuales.value)
+}
+
+const datosFiltrados = computed(() =>
+  datos.value.filter(c =>
+    c.name.toLowerCase().includes(filtro.value.toLowerCase()) ||
+    c.symbol.toLowerCase().includes(filtro.value.toLowerCase())
   )
-  
-  const cantidadActivo = (assetId) => {
-    return tradingStore.cantidadActivo(assetId)
+)
+
+const cantidadActivo = (assetId) => {
+  return tradingStore.cantidadActivo(assetId)
+}
+
+const abrirModalCompra = (asset) => {
+  modalTipo.value = 'buy'
+  assetSeleccionado.value = asset
+  cantidad.value = 0.01
+  errorMessage.value = ''
+  modalVisible.value = true
+}
+
+const abrirModalVenta = (asset) => {
+  modalTipo.value = 'sell'
+  assetSeleccionado.value = asset
+  cantidad.value = 0.01
+  errorMessage.value = ''
+  modalVisible.value = true
+}
+
+const cerrarModal = () => {
+  modalVisible.value = false
+  assetSeleccionado.value = null
+  cantidad.value = 0.01
+  errorMessage.value = ''
+}
+
+const ejecutarTransaccion = async () => {
+  if (!cantidadValida.value) {
+    errorMessage.value = 'Cantidad no válida'
+    return
   }
-  
-  const abrirModalCompra = (asset) => {
-    modalTipo.value = 'buy'
-    assetSeleccionado.value = asset
-    cantidad.value = 0.01
-    errorMessage.value = ''
-    modalVisible.value = true
-  }
-  
-  const abrirModalVenta = (asset) => {
-    modalTipo.value = 'sell'
-    assetSeleccionado.value = asset
-    cantidad.value = 0.01
-    errorMessage.value = ''
-    modalVisible.value = true
-  }
-  
-  const cerrarModal = () => {
-    modalVisible.value = false
-    assetSeleccionado.value = null
-    cantidad.value = 0.01
-    errorMessage.value = ''
-  }
-  
-  const ejecutarTransaccion = async () => {
-    if (!cantidadValida.value) {
-      errorMessage.value = 'Cantidad no válida'
-      return
-    }
-  
-    const asset = assetSeleccionado.value
-    let resultado
-  
-    if (modalTipo.value === 'buy') {
-      resultado = await tradingStore.comprarActivo({
-        assetId: asset.id,
-        assetName: asset.name,
-        assetSymbol: asset.symbol,
-        cantidad: parseFloat(cantidad.value),
-        precio: asset.current_price
-      })
-    } else {
-      resultado = await tradingStore.venderActivo({
-        assetId: asset.id,
-        assetName: asset.name,
-        assetSymbol: asset.symbol,
-        cantidad: parseFloat(cantidad.value),
-        precio: asset.current_price
-      })
-    }
-  
-    if (resultado.success) {
-      cerrarModal()
-    } else {
-      errorMessage.value = resultado.error
-    }
-  }
-  
-  const formatCurrency = (value) => {
-    if (!value && value !== 0) return '-'
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(value)
-  }
-  
-  const formatFecha = (fecha) => {
-    if (!fecha) return '-'
-    return new Date(fecha).toLocaleString('es-ES', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+
+  const asset = assetSeleccionado.value
+  let resultado
+
+  if (modalTipo.value === 'buy') {
+    resultado = await tradingStore.comprarActivo({
+      assetId: asset.id,
+      assetName: asset.name,
+      assetSymbol: asset.symbol,
+      cantidad: parseFloat(cantidad.value),
+      precio: asset.current_price
+    })
+  } else {
+    resultado = await tradingStore.venderActivo({
+      assetId: asset.id,
+      assetName: asset.name,
+      assetSymbol: asset.symbol,
+      cantidad: parseFloat(cantidad.value),
+      precio: asset.current_price
     })
   }
-  
-  // Cargar datos iniciales
-  onMounted(() => {
-    cargarDatos()
-  })
-  
-  // Cargar transacciones cuando el usuario esté autenticado y tenga perfil
-  watch(
-    [() => authStore.isAuthenticated, () => authStore.hasProfile],
-    ([isAuth, hasProfile]) => {
-      if (isAuth && hasProfile) {
-        tradingStore.cargarTransacciones()
-      } else {
-        tradingStore.limpiarTransacciones()
-      }
-    },
-    { immediate: true }
+
+  if (resultado.success) {
+    cerrarModal()
+  } else {
+    errorMessage.value = resultado.error
+  }
+}
+
+// Función para refresh manual
+const actualizarPrecios = () => {
+  cargarDatos()
+}
+
+const verHistorialActivo = (activo) => {
+  const historialActivo = tradingStore.transacciones.filter(
+    t => t.assetId === activo.id
   )
+  console.log('Historial del activo:', historialActivo)
+  // Aquí podrías mostrar un modal con el historial
+}
+
+const formatCurrency = (value) => {
+  if (!value && value !== 0) return '-'
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value)
+}
+
+const formatFecha = (fecha) => {
+  if (!fecha) return '-'
+  return new Date(fecha).toLocaleString('es-ES', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+// Watchers
+watch(
+  () => authStore.isAuthenticated,
+  async (isAuthenticated) => {
+    if (isAuthenticated && authStore.hasProfile) {
+      await tradingStore.cargarDatosUsuario()
+    } else {
+      tradingStore.limpiarDatos()
+    }
+  },
+  { immediate: true }
+)
+
+// Cargar datos iniciales
+onMounted(() => {
+  cargarDatos()
+})
   </script>
   
   <style scoped>
