@@ -64,7 +64,7 @@ const getCachedData = (symbol) => {
   const item = cache[symbol]
   
   if (item && Date.now() - item.timestamp < CACHE_DURATION) {
-    console.log(`📦 Usando datos en caché para ${symbol}`)
+    //console.log(`📦 Usando datos en caché para ${symbol}`)
     return item.data
   }
   return null
@@ -90,7 +90,7 @@ const processQueue = async () => {
     const { symbol, name, resolve, reject } = requestQueue.shift()
     
     try {
-      console.log(`📡 Procesando request para ${name} (${symbol})...`)
+      //console.log(`📡 Procesando request para ${name} (${symbol})...`)
       
       const response = await fetch(
         `${ALPHA_VANTAGE_URL}?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${ALPHA_VANTAGE_KEY}`
@@ -152,7 +152,7 @@ const processQueue = async () => {
 
 // Función principal optimizada
 export const fetchMarketData = async () => {
-  console.log('📊 Obteniendo datos de mercado...')
+  //console.log('📊 Obteniendo datos de mercado...')
   
   // Verificar API key
   if (!ALPHA_VANTAGE_KEY || ALPHA_VANTAGE_KEY === 'tu_alpha_vantage_key') {
@@ -181,11 +181,11 @@ export const fetchMarketData = async () => {
   
   // Si todos los datos están en caché, devolver inmediatamente
   if (symbolsNeeded.length === 0) {
-    console.log('✅ Todos los datos obtenidos de caché')
+    //console.log('✅ Todos los datos obtenidos de caché')
     return results
   }
   
-  console.log(`🔄 Solicitando ${symbolsNeeded.length} símbolos nuevos...`)
+  //console.log(`🔄 Solicitando ${symbolsNeeded.length} símbolos nuevos...`)
   
   // Crear promesas para los símbolos necesarios
   const promises = symbolsNeeded.map(({ symbol, name }) => {
@@ -208,7 +208,7 @@ export const fetchMarketData = async () => {
     })
   })
   
-  console.log(`✅ Datos de mercado listos: ${results.length} activos`)
+  //console.log(`✅ Datos de mercado listos: ${results.length} activos`)
   return results
 }
 
@@ -233,5 +233,5 @@ export const fetchSymbolData = async (symbol) => {
 // Limpiar caché (útil para testing)
 export const clearCache = () => {
   localStorage.removeItem(STORAGE_KEY)
-  console.log('🗑️ Caché eliminada')
+  //console.log('🗑️ Caché eliminada')
 }

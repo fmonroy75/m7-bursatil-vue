@@ -105,20 +105,20 @@ const sampleNews = [
 
 // Función para poblar la base de datos
 async function populateNews() {
-  console.log('📝 Agregando noticias de ejemplo a Firebase...')
+  //console.log('📝 Agregando noticias de ejemplo a Firebase...')
 
   const newsCollection = collection(db, 'news')
 
   for (const news of sampleNews) {
     try {
       const docRef = await addDoc(newsCollection, news)
-      console.log(`✅ Noticia agregada: ${news.title} (ID: ${docRef.id})`)
+      //console.log(`✅ Noticia agregada: ${news.title} (ID: ${docRef.id})`)
     } catch (error) {
       console.error(`❌ Error agregando noticia: ${news.title}`, error.message)
     }
   }
 
-  console.log('🎉 Proceso completado!')
+  //console.log('🎉 Proceso completado!')
   process.exit(0)
 }
 

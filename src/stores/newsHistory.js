@@ -51,13 +51,13 @@ export const useNewsHistoryStore = defineStore('newsHistory', {
     async loadUserHistory() {
       const authStore = useAuthStore()
       if (!authStore.user?.uid) {
-        console.log('👤 Usuario no autenticado, no se carga historial')
+        //console.log('👤 Usuario no autenticado, no se carga historial')
         return
       }
 
       this.loading = true
       try {
-        console.log(`📚 Cargando historial para usuario: ${authStore.user.uid}`)
+        //console.log(`📚 Cargando historial para usuario: ${authStore.user.uid}`)
         
         const q = query(
           collection(db, 'newsHistory'),
@@ -73,7 +73,7 @@ export const useNewsHistoryStore = defineStore('newsHistory', {
           viewedAt: doc.data().viewedAt?.toDate?.() || doc.data().viewedAt
         }))
         
-        console.log(`✅ Historial cargado: ${this.viewedNews.length} noticias`)
+        //console.log(`✅ Historial cargado: ${this.viewedNews.length} noticias`)
       } catch (error) {
         console.error('Error cargando historial:', error)
         this.error = error.message
@@ -86,7 +86,7 @@ export const useNewsHistoryStore = defineStore('newsHistory', {
     async trackNewsView(newsId, newsTitle, newsCategory) {
       const authStore = useAuthStore()
       if (!authStore.user?.uid) {
-        console.log('👤 Usuario no autenticado, no se registra vista')
+        //console.log('👤 Usuario no autenticado, no se registra vista')
         return
       }
 
@@ -123,7 +123,7 @@ export const useNewsHistoryStore = defineStore('newsHistory', {
             await this.loadUserHistory()
           }
           
-          console.log(`🔄 Vista actualizada para noticia existente: ${newsTitle}`)
+          //console.log(`🔄 Vista actualizada para noticia existente: ${newsTitle}`)
           return
         }
         
@@ -153,7 +153,7 @@ export const useNewsHistoryStore = defineStore('newsHistory', {
           this.viewedNews = this.viewedNews.slice(0, 50)
         }
 
-        console.log(`✅ Vista registrada correctamente para: ${newsTitle}`)
+        //console.log(`✅ Vista registrada correctamente para: ${newsTitle}`)
       } catch (error) {
         console.error('Error registrando vista:', error)
         this.error = error.message
@@ -167,7 +167,7 @@ export const useNewsHistoryStore = defineStore('newsHistory', {
 
       this.loading = true
       try {
-        console.log(`🗑️ Limpiando historial para usuario: ${authStore.user.uid}`)
+        //console.log(`🗑️ Limpiando historial para usuario: ${authStore.user.uid}`)
         
         const q = query(
           collection(db, 'newsHistory'),
@@ -184,7 +184,7 @@ export const useNewsHistoryStore = defineStore('newsHistory', {
         await batch.commit()
         this.viewedNews = []
         
-        console.log('✅ Historial limpiado correctamente')
+        //console.log('✅ Historial limpiado correctamente')
       } catch (error) {
         console.error('Error limpiando historial:', error)
         this.error = error.message
@@ -201,7 +201,7 @@ export const useNewsHistoryStore = defineStore('newsHistory', {
         // Actualizar estado local
         this.viewedNews = this.viewedNews.filter(item => item.id !== historyId)
         
-        console.log(`🗑️ Noticia eliminada del historial: ${historyId}`)
+        //console.log(`🗑️ Noticia eliminada del historial: ${historyId}`)
       } catch (error) {
         console.error('Error eliminando del historial:', error)
         this.error = error.message

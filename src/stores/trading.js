@@ -105,7 +105,7 @@ export const useTradingStore = defineStore('trading', {
         
         if (balanceDoc.exists()) {
           this.balance = balanceDoc.data().amount
-          console.log(`💰 Balance cargado: $${this.balance.toLocaleString()}`)
+          //console.log(`💰 Balance cargado: $${this.balance.toLocaleString()}`)
         } else {
           // Crear balance inicial para nuevo usuario
           await setDoc(balanceRef, {
@@ -115,7 +115,7 @@ export const useTradingStore = defineStore('trading', {
             updatedAt: Timestamp.now()
           })
           this.balance = 10000
-          console.log(`🎉 Balance inicial creado: $10,000`)
+          //console.log(`🎉 Balance inicial creado: $10,000`)
         }
         
         this.balanceLoaded = true
@@ -147,7 +147,7 @@ export const useTradingStore = defineStore('trading', {
           fecha: doc.data().fecha?.toDate?.() || doc.data().fecha
         }))
         
-        console.log(`📊 ${this.transacciones.length} transacciones cargadas`)
+        //console.log(`📊 ${this.transacciones.length} transacciones cargadas`)
       } catch (error) {
         console.error('Error cargando transacciones:', error)
         this.error = error.message
@@ -236,7 +236,7 @@ export const useTradingStore = defineStore('trading', {
           fecha: new Date()
         })
 
-        console.log(`✅ Compra exitosa! Nuevo balance: $${this.balance.toFixed(2)}`)
+        //console.log(`✅ Compra exitosa! Nuevo balance: $${this.balance.toFixed(2)}`)
         return { success: true }
 
       } catch (error) {
@@ -319,7 +319,7 @@ export const useTradingStore = defineStore('trading', {
           fecha: new Date()
         })
 
-        console.log(`💰 Venta exitosa! Nuevo balance: $${this.balance.toFixed(2)}`)
+        //console.log(`💰 Venta exitosa! Nuevo balance: $${this.balance.toFixed(2)}`)
         return { success: true }
 
       } catch (error) {
@@ -341,7 +341,7 @@ export const useTradingStore = defineStore('trading', {
           this.cargarBalance(),
           this.cargarTransacciones()
         ])
-        console.log('✅ Datos de trading cargados correctamente')
+        //console.log('✅ Datos de trading cargados correctamente')
       } catch (error) {
         console.error('Error cargando datos de trading:', error)
       } finally {

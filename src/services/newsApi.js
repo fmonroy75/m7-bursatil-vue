@@ -73,7 +73,7 @@ const detectCategoryByContent = (title, description) => {
 
 export const fetchNews = async () => {
   try {
-    console.log('📰 Verificando noticias en Firestore...')
+   // console.log('📰 Verificando noticias en Firestore...')
     
     const oneDayAgo = new Date()
     oneDayAgo.setDate(oneDayAgo.getDate() - 1)
@@ -87,7 +87,7 @@ export const fetchNews = async () => {
       const latestDate = latestNews.publishedAt?.toDate?.() || new Date(latestNews.publishedAt)
       
       if (latestDate > oneDayAgo) {
-        console.log('📰 Usando noticias existentes en Firestore (menos de 24h)')
+       // console.log('📰 Usando noticias existentes en Firestore (menos de 24h)')
         const allNewsQuery = query(newsRef, orderBy('publishedAt', 'desc'), limit(50))
         const allSnapshot = await getDocs(allNewsQuery)
         
@@ -99,7 +99,7 @@ export const fetchNews = async () => {
       }
     }
 
-    console.log('🌐 Obteniendo noticias desde NewsAPI...')
+    //console.log('🌐 Obteniendo noticias desde NewsAPI...')
     
     const allNews = []
     const batch = writeBatch(db)
@@ -107,7 +107,7 @@ export const fetchNews = async () => {
     // Obtener noticias por categorías de API
     for (const category of NEWS_API_CATEGORIES) {
       try {
-        console.log(`📡 Cargando categoría API: ${category}...`)
+       // console.log(`📡 Cargando categoría API: ${category}...`)
         
         const response = await fetch(
           `${NEWS_API_URL}/top-headlines?country=us&category=${category}&pageSize=10&apiKey=${NEWS_API_KEY}`
@@ -160,12 +160,12 @@ export const fetchNews = async () => {
     }
     
     // Búsquedas adicionales por palabras clave
-    console.log('🔍 Realizando búsquedas por palabras clave...')
+    //console.log('🔍 Realizando búsquedas por palabras clave...')
     
     for (const [catName, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
       try {
         const keyword = keywords[0]
-        console.log(`🔎 Buscando noticias de ${catName} con keyword: ${keyword}`)
+        //console.log(`🔎 Buscando noticias de ${catName} con keyword: ${keyword}`)
         
         const response = await fetch(
           `${NEWS_API_URL}/everything?q=${encodeURIComponent(keyword)}&language=en&pageSize=5&apiKey=${NEWS_API_KEY}`
@@ -212,13 +212,13 @@ export const fetchNews = async () => {
     
     if (allNews.length > 0) {
       await batch.commit()
-      console.log(`✅ ${allNews.length} noticias guardadas en Firestore`)
+      //console.log(`✅ ${allNews.length} noticias guardadas en Firestore`)
       
       const stats = {}
       allNews.forEach(item => {
         stats[item.category] = (stats[item.category] || 0) + 1
       })
-      console.log('📊 Distribución por categoría:', stats)
+      //console.log('📊 Distribución por categoría:', stats)
     }
     
     return allNews

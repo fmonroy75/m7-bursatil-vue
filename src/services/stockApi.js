@@ -10,7 +10,7 @@ const CORS_PROXY = 'https://api.allorigins.win/raw?url='
  * Obtiene datos en tiempo real de Yahoo Finance usando proxy CORS
  */
 export const obtenerAccionesReales = async () => {
-  console.log('📡 Obteniendo datos reales de Yahoo Finance...')
+  //console.log('📡 Obteniendo datos reales de Yahoo Finance...')
 
   try {
     const promises = SYMBOLS.map(async (symbol) => {
@@ -61,7 +61,7 @@ export const obtenerAccionesReales = async () => {
     })
 
     const resultados = await Promise.all(promises)
-    console.log('✅ Datos reales obtenidos:', resultados.length)
+    //console.log('✅ Datos reales obtenidos:', resultados.length)
 
     return resultados
   } catch (error) {

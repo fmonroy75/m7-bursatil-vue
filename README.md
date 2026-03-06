@@ -24,6 +24,7 @@ La aplicación permite:
 Este proyecto fue desarrollado con **Vue 3 + Vite + Firebase**
 utilizando una arquitectura moderna basada en **Composition API y
 Pinia**.
+Proyecto optimizado para rendimiento: limpieza de logs y manejo de estados de carga para mejorar la experiencia del usuario
 
 ------------------------------------------------------------------------
 

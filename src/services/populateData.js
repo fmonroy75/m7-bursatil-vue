@@ -71,7 +71,7 @@ const activosIniciales = [
 
 // Función para poblar la base de datos
 export const poblarActivos = async () => {
-  console.log('🔄 Iniciando población de activos...')
+  //console.log('🔄 Iniciando población de activos...')
 
   try {
     const coleccion = collection(db, 'activos')
@@ -80,10 +80,10 @@ export const poblarActivos = async () => {
     for (const activo of activosIniciales) {
       await addDoc(coleccion, activo)
       contador++
-      console.log(`✅ Agregado: ${activo.nombre} (${activo.simbolo})`)
+      //console.log(`✅ Agregado: ${activo.nombre} (${activo.simbolo})`)
     }
 
-    console.log(`🎉 ¡Éxito! Se agregaron ${contador} activos a Firestore`)
+    //console.log(`🎉 ¡Éxito! Se agregaron ${contador} activos a Firestore`)
     return { success: true, count: contador }
   } catch (error) {
     console.error('❌ Error poblando datos:', error)
@@ -94,5 +94,5 @@ export const poblarActivos = async () => {
 // Para ejecutar desde la consola del navegador
 if (import.meta.env.DEV) {
   window.poblarActivos = poblarActivos
-  console.log('📢 Para poblar la base de datos, escriba en la consola: await poblarActivos()')
+  //console.log('📢 Para poblar la base de datos, escriba en la consola: await poblarActivos()')
 }

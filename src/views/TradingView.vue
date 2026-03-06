@@ -309,7 +309,7 @@ const actualizarMapaPrecios = (datos) => {
     nuevoMapa[item.name] = item.current_price
   })
   preciosActuales.value = nuevoMapa
-  console.log('💰 Precios actualizados:', preciosActuales.value)
+  //console.log('💰 Precios actualizados:', preciosActuales.value)
 }
 
 const datosFiltrados = computed(() =>
@@ -389,7 +389,7 @@ const verHistorialActivo = (activo) => {
   const historialActivo = tradingStore.transacciones.filter(
     t => t.assetId === activo.id
   )
-  console.log('Historial del activo:', historialActivo)
+  //console.log('Historial del activo:', historialActivo)
   // Aquí podrías mostrar un modal con el historial
 }
 

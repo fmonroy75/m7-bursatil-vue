@@ -100,14 +100,14 @@ const handleRegister = async () => {
     authStore.error = 'Las contraseñas no coinciden'
     return
   }
-  console.log('Enviando registro...')
+  //console.log('Enviando registro...')
   // Llamar al store - ESTO AHORA DEVOLVERÁ UN OBJETO
   const result = await authStore.register(email.value, password.value)
-  console.log('Resultado recibido:', result)
+  //console.log('Resultado recibido:', result)
 
   // Verificar el resultado
   if (result && result.success) {
-    console.log('Registro exitoso, redirigiendo...')
+    //console.log('Registro exitoso, redirigiendo...')
     successMessage.value = 'Registro exitoso. Redirigiendo...'
     setTimeout(() => {
       router.push({ name: 'dashboard' })

@@ -232,7 +232,7 @@ const loadNews = async () => {
   try {
     const newsData = await fetchNews()
     allNews.value = newsData
-    console.log('✅ Noticias cargadas:', newsData.length)
+    //console.log('✅ Noticias cargadas:', newsData.length)
   } catch (error) {
     console.error('❌ Error cargando noticias:', error)
   } finally {
@@ -246,7 +246,7 @@ const loadMarketData = async (forceRefresh = false) => {
   if (!forceRefresh && lastMarketUpdate.value) {
     const timeSinceUpdate = new Date() - lastMarketUpdate.value
     if (timeSinceUpdate < 60 * 60 * 1000) {
-      console.log('📊 Usando datos de mercado existentes')
+      //console.log('📊 Usando datos de mercado existentes')
       return
     }
   }
@@ -258,7 +258,7 @@ const loadMarketData = async (forceRefresh = false) => {
     const data = await fetchMarketData()
     marketData.value = data
     lastMarketUpdate.value = new Date()
-    console.log('📈 Datos de mercado actualizados:', data.length, 'activos')
+    //console.log('📈 Datos de mercado actualizados:', data.length, 'activos')
   } catch (error) {
     console.error('Error loading market data:', error)
     marketError.value = 'Error cargando datos de mercado'

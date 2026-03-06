@@ -415,7 +415,7 @@ export const useAuthStore = defineStore('auth', {
 
         const userCredential = await signInWithEmailAndPassword(auth, sanitizedEmail, password)
         this.user = userCredential.user
-        console.log('accediendo' , userCredential.user)
+        //console.log('accediendo' , userCredential.user)
         sessionStorage.setItem('userEmail', this.user.email)
         
         // Verificar si tiene perfil
