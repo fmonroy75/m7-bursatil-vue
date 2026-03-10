@@ -5,7 +5,7 @@
       <div class="col-lg-8 mx-auto">
         <div class="card bg-dark text-white">
           <img
-            :src="news.imageUrl || 'https://via.placeholder.com/1200x400'"
+            :src="news.imageUrl || 'https://placehold.co/300x200'"
             class="card-img-top"
             :alt="news.title"
           />

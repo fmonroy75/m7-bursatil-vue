@@ -4,7 +4,7 @@
       <div class="row g-0">
         <div class="col-md-4">
           <img
-            :src="news.imageUrl || 'https://via.placeholder.com/300x200'"
+            :src="news.imageUrl || 'https://placehold.co/300x200'"
             class="img-fluid rounded-start h-100"
             :alt="news.title"
             style="object-fit: cover;"

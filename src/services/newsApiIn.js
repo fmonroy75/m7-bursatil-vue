@@ -56,7 +56,7 @@ export const fetchNewsFromNewsAPIIn = async () => {
             title: article.title,
             summary: article.description || 'Sin descripción',
             content: article.content || article.description || 'Contenido no disponible',
-            imageUrl: article.urlToImage || 'https://via.placeholder.com/300x200',
+            imageUrl: article.urlToImage || 'https://placehold.co/300x200',
             author: article.author || 'Autor Desconocido',
             source: article.source?.name || 'NewsAPI.in',
             url: article.url,
