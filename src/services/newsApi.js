@@ -64,7 +64,7 @@ const detectCategoryByContent = (title, description) => {
 // ===== NUEVA FUNCIÓN: Obtener noticias desde Firebase =====
 const fetchNewsFromFirebase = async () => {
   try {
-    console.log('📰 Cargando noticias desde Firebase...')
+    //console.log('📰 Cargando noticias desde Firebase...')
     const newsRef = collection(db, 'news')
     const q = query(newsRef, orderBy('publishedAt', 'desc'), limit(50))
     const snapshot = await getDocs(q)
@@ -75,7 +75,7 @@ const fetchNewsFromFirebase = async () => {
       publishedAt: doc.data().publishedAt?.toDate?.() || doc.data().publishedAt
     }))
     
-    console.log(`✅ ${news.length} noticias cargadas desde Firebase`)
+    //console.log(`✅ ${news.length} noticias cargadas desde Firebase`)
     return news
   } catch (error) {
     console.error('Error cargando desde Firebase:', error)
@@ -85,7 +85,7 @@ const fetchNewsFromFirebase = async () => {
 
 // ===== NUEVA FUNCIÓN: Obtener noticias desde NewsAPI =====
 const fetchNewsFromAPI = async () => {
-  console.log('🌐 Intentando obtener noticias desde NewsAPI...')
+  //console.log('🌐 Intentando obtener noticias desde NewsAPI...')
   
   // Verificar API key
   if (!NEWS_API_KEY || !NEWS_API_URL) {
