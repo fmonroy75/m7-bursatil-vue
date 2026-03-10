@@ -88,7 +88,7 @@ const fetchNewsFromAPI = async () => {
   console.log('🌐 Intentando obtener noticias desde NewsAPI...')
   
   // Verificar API key
-  if (!NEWS_API_KEY || NEWS_API_KEY === 'tu_api_key') {
+  if (!NEWS_API_KEY || !NEWS_API_URL) {
     throw new Error('API key no configurada')
   }
 
@@ -199,7 +199,7 @@ const fetchNewsFromAPI = async () => {
   // Guardar en Firestore si hay noticias nuevas
   if (allNews.length > 0) {
     await batch.commit()
-    console.log(`✅ ${allNews.length} noticias guardadas en Firestore desde API`)
+    //console.log(`✅ ${allNews.length} noticias guardadas en Firestore desde API`)
   }
   
   return allNews
@@ -207,13 +207,13 @@ const fetchNewsFromAPI = async () => {
 
 // ===== FUNCIÓN PRINCIPAL MODIFICADA CON FALLBACK =====
 export const fetchNews = async (forceRefresh = false) => {
-  console.log('📰 Iniciando carga de noticias...')
+  //console.log('📰 Iniciando carga de noticias...')
   
   // 1. Si no es forceRefresh, intentar obtener de Firebase primero
   if (!forceRefresh) {
     const firebaseNews = await fetchNewsFromFirebase()
     if (firebaseNews.length > 0) {
-      console.log('✅ Usando noticias existentes en Firebase')
+      //console.log('✅ Usando noticias existentes en Firebase')
       return firebaseNews
     }
   }
@@ -222,7 +222,7 @@ export const fetchNews = async (forceRefresh = false) => {
   try {
     const apiNews = await fetchNewsFromAPI()
     if (apiNews.length > 0) {
-      console.log('✅ Noticias obtenidas desde NewsAPI')
+      //console.log('✅ Noticias obtenidas desde NewsAPI')
       return apiNews
     }
   } catch (error) {
@@ -230,22 +230,22 @@ export const fetchNews = async (forceRefresh = false) => {
   }
   
   // 3. Último intento: Firebase nuevamente (por si se pobló en otro momento)
-  console.log('⚠️ NewsAPI falló, intentando Firebase nuevamente...')
+  //console.log('⚠️ NewsAPI falló, intentando Firebase nuevamente...')
   const fallbackNews = await fetchNewsFromFirebase()
   
   if (fallbackNews.length > 0) {
-    console.log('✅ Usando Firebase como fallback')
+    //console.log('✅ Usando Firebase como fallback')
     return fallbackNews
   }
   
   // 4. Si todo falla, array vacío (la UI mostrará mensaje)
-  console.log('❌ No hay noticias disponibles')
+  //console.log('❌ No hay noticias disponibles')
   return []
 }
 
 // ===== FUNCIÓN PARA REFRESCAR MANUALMENTE =====
 export const refreshNews = async () => {
-  console.log('🔄 Forzando actualización desde NewsAPI...')
+  //console.log('🔄 Forzando actualización desde NewsAPI...')
   try {
     const apiNews = await fetchNewsFromAPI()
     if (apiNews.length > 0) {
