@@ -374,7 +374,7 @@ Configurar **vite.config.js**
 ``` javascript
 export default defineConfig({
   plugins: [vue()],
-  base: '/nombre-de-tu-repo/',
+  base: '/m7-bursatil-vue/',
 })
 ```
 

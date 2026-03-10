@@ -12,7 +12,7 @@ import {
   limit,
   Timestamp,
   writeBatch,
-  updateDoc // Añadir updateDoc para incrementar views
+  updateDoc
 } from 'firebase/firestore'
 
 const NEWS_API_KEY = import.meta.env.VITE_NEWS_API_KEY
@@ -22,10 +22,6 @@ const NEWS_API_URL = import.meta.env.VITE_NEWS_API_URL
 const NEWS_API_CATEGORIES = [
   'business',      // → Empresas, Economía, Mercados
   'technology',    // → Tecnología
-  /*'science',       // → Ciencia
-  'health',        // → Salud
-  'entertainment', // → Entretenimiento
-  'sports',        // → Deportes*/
   'general'        // → General
 ]
 
@@ -40,10 +36,6 @@ const CATEGORY_KEYWORDS = {
 const categoryMapping = {
   'business': 'Empresas',
   'technology': 'Tecnología',
-  /*'science': 'Ciencia',
-  'health': 'Salud',
-  'entertainment': 'Entretenimiento',
-  'sports': 'Deportes',*/
   'general': 'General',
   'economy': 'Economía',
   'politics': 'Política',
@@ -69,68 +61,112 @@ const detectCategoryByContent = (title, description) => {
   return null
 }
 
-// ============= FUNCIONES DE NOTICIAS =============
-
-export const fetchNews = async () => {
+// ===== NUEVA FUNCIÓN: Obtener noticias desde Firebase =====
+const fetchNewsFromFirebase = async () => {
   try {
-   // console.log('📰 Verificando noticias en Firestore...')
-    
-    const oneDayAgo = new Date()
-    oneDayAgo.setDate(oneDayAgo.getDate() - 1)
-    
+    console.log('📰 Cargando noticias desde Firebase...')
     const newsRef = collection(db, 'news')
-    const recentQuery = query(newsRef, orderBy('publishedAt', 'desc'), limit(1))
-    const recentSnapshot = await getDocs(recentQuery)
+    const q = query(newsRef, orderBy('publishedAt', 'desc'), limit(50))
+    const snapshot = await getDocs(q)
     
-    if (!recentSnapshot.empty) {
-      const latestNews = recentSnapshot.docs[0].data()
-      const latestDate = latestNews.publishedAt?.toDate?.() || new Date(latestNews.publishedAt)
-      
-      if (latestDate > oneDayAgo) {
-       // console.log('📰 Usando noticias existentes en Firestore (menos de 24h)')
-        const allNewsQuery = query(newsRef, orderBy('publishedAt', 'desc'), limit(50))
-        const allSnapshot = await getDocs(allNewsQuery)
-        
-        return allSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          publishedAt: doc.data().publishedAt?.toDate?.() || doc.data().publishedAt
-        }))
-      }
-    }
+    const news = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      publishedAt: doc.data().publishedAt?.toDate?.() || doc.data().publishedAt
+    }))
+    
+    console.log(`✅ ${news.length} noticias cargadas desde Firebase`)
+    return news
+  } catch (error) {
+    console.error('Error cargando desde Firebase:', error)
+    return []
+  }
+}
 
-    //console.log('🌐 Obteniendo noticias desde NewsAPI...')
-    
-    const allNews = []
-    const batch = writeBatch(db)
-    
-    // Obtener noticias por categorías de API
-    for (const category of NEWS_API_CATEGORIES) {
-      try {
-       // console.log(`📡 Cargando categoría API: ${category}...`)
-        
-        const response = await fetch(
-          `${NEWS_API_URL}/top-headlines?country=us&category=${category}&pageSize=10&apiKey=${NEWS_API_KEY}`
-        )
-        
-        if (!response.ok) {
-          console.warn(`⚠️ Error en categoría ${category}: ${response.status}`)
-          continue
-        }
-        
+// ===== NUEVA FUNCIÓN: Obtener noticias desde NewsAPI =====
+const fetchNewsFromAPI = async () => {
+  console.log('🌐 Intentando obtener noticias desde NewsAPI...')
+  
+  // Verificar API key
+  if (!NEWS_API_KEY || NEWS_API_KEY === 'tu_api_key') {
+    throw new Error('API key no configurada')
+  }
+
+  const allNews = []
+  const batch = writeBatch(db)
+  
+  // Obtener noticias por categorías de API
+  for (const category of NEWS_API_CATEGORIES) {
+    try {
+      const response = await fetch(
+        `${NEWS_API_URL}/top-headlines?country=us&category=${category}&pageSize=10&apiKey=${NEWS_API_KEY}`
+      )
+      
+      if (!response.ok) {
+        console.warn(`⚠️ Error en categoría ${category}: ${response.status}`)
+        continue
+      }
+      
+      const data = await response.json()
+      
+      if (data.articles && data.articles.length > 0) {
+        data.articles.forEach((article, index) => {
+          if (!article.title || article.title === '[Removed]') return
+          
+          let finalCategory = categoryMapping[category] || 'General'
+          const detectedCategory = detectCategoryByContent(article.title, article.description)
+          if (detectedCategory) {
+            finalCategory = detectedCategory
+          }
+          
+          const newsId = `news_${Date.now()}_${category}_${index}`
+          const newsRef = doc(db, 'news', newsId)
+          
+          const newsItem = {
+            title: article.title,
+            summary: article.description || 'Sin descripción',
+            content: article.content || article.description || 'Contenido no disponible',
+            imageUrl: article.urlToImage || null,
+            author: article.author || 'Autor Desconocido',
+            source: article.source?.name || 'NewsAPI',
+            url: article.url,
+            category: finalCategory,
+            publishedAt: Timestamp.fromDate(new Date(article.publishedAt)),
+            views: 0,
+            createdAt: Timestamp.now()
+          }
+          
+          batch.set(newsRef, newsItem)
+          allNews.push({ id: newsId, ...newsItem, publishedAt: article.publishedAt })
+        })
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+    } catch (catError) {
+      console.error(`Error en categoría ${category}:`, catError)
+    }
+  }
+  
+  // Búsquedas adicionales por palabras clave
+  for (const [catName, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    try {
+      const keyword = keywords[0]
+      
+      const response = await fetch(
+        `${NEWS_API_URL}/everything?q=${encodeURIComponent(keyword)}&language=en&pageSize=5&apiKey=${NEWS_API_KEY}`
+      )
+      
+      if (response.ok) {
         const data = await response.json()
         
         if (data.articles && data.articles.length > 0) {
           data.articles.forEach((article, index) => {
             if (!article.title || article.title === '[Removed]') return
             
-            let finalCategory = categoryMapping[category] || 'General'
-            const detectedCategory = detectCategoryByContent(article.title, article.description)
-            if (detectedCategory) {
-              finalCategory = detectedCategory
-            }
+            if (allNews.some(n => n.url === article.url)) return
             
-            const newsId = `news_${Date.now()}_${category}_${index}`
+            const newsId = `news_${Date.now()}_keyword_${index}`
             const newsRef = doc(db, 'news', newsId)
             
             const newsItem = {
@@ -141,7 +177,7 @@ export const fetchNews = async () => {
               author: article.author || 'Autor Desconocido',
               source: article.source?.name || 'NewsAPI',
               url: article.url,
-              category: finalCategory,
+              category: catName,
               publishedAt: Timestamp.fromDate(new Date(article.publishedAt)),
               views: 0,
               createdAt: Timestamp.now()
@@ -151,83 +187,79 @@ export const fetchNews = async () => {
             allNews.push({ id: newsId, ...newsItem, publishedAt: article.publishedAt })
           })
         }
-        
-        await new Promise(resolve => setTimeout(resolve, 500))
-        
-      } catch (catError) {
-        console.error(`Error en categoría ${category}:`, catError)
       }
-    }
-    
-    // Búsquedas adicionales por palabras clave
-    //console.log('🔍 Realizando búsquedas por palabras clave...')
-    
-    for (const [catName, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
-      try {
-        const keyword = keywords[0]
-        //console.log(`🔎 Buscando noticias de ${catName} con keyword: ${keyword}`)
-        
-        const response = await fetch(
-          `${NEWS_API_URL}/everything?q=${encodeURIComponent(keyword)}&language=en&pageSize=5&apiKey=${NEWS_API_KEY}`
-        )
-        
-        if (response.ok) {
-          const data = await response.json()
-          
-          if (data.articles && data.articles.length > 0) {
-            data.articles.forEach((article, index) => {
-              if (!article.title || article.title === '[Removed]') return
-              
-              if (allNews.some(n => n.url === article.url)) return
-              
-              const newsId = `news_${Date.now()}_keyword_${index}`
-              const newsRef = doc(db, 'news', newsId)
-              
-              const newsItem = {
-                title: article.title,
-                summary: article.description || 'Sin descripción',
-                content: article.content || article.description || 'Contenido no disponible',
-                imageUrl: article.urlToImage || null,
-                author: article.author || 'Autor Desconocido',
-                source: article.source?.name || 'NewsAPI',
-                url: article.url,
-                category: catName,
-                publishedAt: Timestamp.fromDate(new Date(article.publishedAt)),
-                views: 0,
-                createdAt: Timestamp.now()
-              }
-              
-              batch.set(newsRef, newsItem)
-              allNews.push({ id: newsId, ...newsItem, publishedAt: article.publishedAt })
-            })
-          }
-        }
-        
-        await new Promise(resolve => setTimeout(resolve, 500))
-        
-      } catch (keywordError) {
-        console.error(`Error buscando ${catName}:`, keywordError)
-      }
-    }
-    
-    if (allNews.length > 0) {
-      await batch.commit()
-      //console.log(`✅ ${allNews.length} noticias guardadas en Firestore`)
       
-      const stats = {}
-      allNews.forEach(item => {
-        stats[item.category] = (stats[item.category] || 0) + 1
-      })
-      //console.log('📊 Distribución por categoría:', stats)
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+    } catch (keywordError) {
+      console.error(`Error buscando ${catName}:`, keywordError)
     }
-    
-    return allNews
-    
-  } catch (error) {
-    console.error('Error fetching news:', error)
-    return []
   }
+  
+  // Guardar en Firestore si hay noticias nuevas
+  if (allNews.length > 0) {
+    await batch.commit()
+    console.log(`✅ ${allNews.length} noticias guardadas en Firestore desde API`)
+  }
+  
+  return allNews
 }
+
+// ===== FUNCIÓN PRINCIPAL MODIFICADA CON FALLBACK =====
+export const fetchNews = async (forceRefresh = false) => {
+  console.log('📰 Iniciando carga de noticias...')
+  
+  // 1. Si no es forceRefresh, intentar obtener de Firebase primero
+  if (!forceRefresh) {
+    const firebaseNews = await fetchNewsFromFirebase()
+    if (firebaseNews.length > 0) {
+      console.log('✅ Usando noticias existentes en Firebase')
+      return firebaseNews
+    }
+  }
+  
+  // 2. Si Firebase está vacío o forceRefresh=true, intentar con NewsAPI
+  try {
+    const apiNews = await fetchNewsFromAPI()
+    if (apiNews.length > 0) {
+      console.log('✅ Noticias obtenidas desde NewsAPI')
+      return apiNews
+    }
+  } catch (error) {
+    console.error('❌ Error en NewsAPI:', error.message)
+  }
+  
+  // 3. Último intento: Firebase nuevamente (por si se pobló en otro momento)
+  console.log('⚠️ NewsAPI falló, intentando Firebase nuevamente...')
+  const fallbackNews = await fetchNewsFromFirebase()
+  
+  if (fallbackNews.length > 0) {
+    console.log('✅ Usando Firebase como fallback')
+    return fallbackNews
+  }
+  
+  // 4. Si todo falla, array vacío (la UI mostrará mensaje)
+  console.log('❌ No hay noticias disponibles')
+  return []
+}
+
+// ===== FUNCIÓN PARA REFRESCAR MANUALMENTE =====
+export const refreshNews = async () => {
+  console.log('🔄 Forzando actualización desde NewsAPI...')
+  try {
+    const apiNews = await fetchNewsFromAPI()
+    if (apiNews.length > 0) {
+      return apiNews
+    }
+  } catch (error) {
+    console.error('Error en refresh:', error)
+  }
+  
+  // Si falla, devolver lo que haya en Firebase
+  return await fetchNewsFromFirebase()
+}
+
+// ===== RESTO DE FUNCIONES IGUAL =====
 
 export const fetchNewsById = async (newsId) => {
   try {
@@ -237,7 +269,6 @@ export const fetchNewsById = async (newsId) => {
     if (docSnap.exists()) {
       const data = docSnap.data()
       
-      // Incrementar contador de vistas
       await updateDoc(docRef, {
         views: (data.views || 0) + 1
       })
@@ -319,8 +350,6 @@ export const getNewsByCategory = async (category) => {
 
 export const searchNews = async (searchTerm) => {
   try {
-    // Nota: Firestore no soporta búsqueda de texto completo nativamente
-    // Esta es una implementación simple, para búsqueda avanzada considera Algolia o MeiliSearch
     const newsRef = collection(db, 'news')
     const snapshot = await getDocs(newsRef)
     
