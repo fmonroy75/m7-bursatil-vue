@@ -42,7 +42,17 @@ const categoryMapping = {
   'markets': 'Mercados'
 }
 
-// Detectar categoría por contenido
+// ===== FUNCIÓN: Verificar configuración de API =====
+const isApiConfigured = () => {
+  return !!(
+    NEWS_API_KEY && 
+    NEWS_API_URL && 
+    !NEWS_API_KEY.includes('undefined') && 
+    !NEWS_API_URL.includes('undefined')
+  )
+}
+
+// ===== FUNCIÓN: Detectar categoría por contenido =====
 const detectCategoryByContent = (title, description) => {
   const text = `${title} ${description || ''}`.toLowerCase()
   
@@ -61,7 +71,20 @@ const detectCategoryByContent = (title, description) => {
   return null
 }
 
-// ===== NUEVA FUNCIÓN: Obtener noticias desde Firebase =====
+// ===== FUNCIÓN: Verificar si una noticia ya existe en Firebase =====
+const newsExists = async (url) => {
+  try {
+    const newsRef = collection(db, 'news')
+    const q = query(newsRef, where('url', '==', url))
+    const snapshot = await getDocs(q)
+    return !snapshot.empty
+  } catch (error) {
+    console.error('Error verificando existencia:', error)
+    return false
+  }
+}
+
+// ===== FUNCIÓN: Obtener noticias desde Firebase =====
 const fetchNewsFromFirebase = async () => {
   try {
     //console.log('📰 Cargando noticias desde Firebase...')
@@ -83,17 +106,18 @@ const fetchNewsFromFirebase = async () => {
   }
 }
 
-// ===== NUEVA FUNCIÓN: Obtener noticias desde NewsAPI =====
+// ===== FUNCIÓN: Obtener noticias desde NewsAPI (sin duplicados) =====
 const fetchNewsFromAPI = async () => {
   //console.log('🌐 Intentando obtener noticias desde NewsAPI...')
   
-  // Verificar API key
-  if (!NEWS_API_KEY || !NEWS_API_URL) {
-    throw new Error('API key no configurada')
+  if (!isApiConfigured()) {
+    throw new Error('API no configurada correctamente')
   }
 
   const allNews = []
   const batch = writeBatch(db)
+  let hasErrors = false
+  let nuevasNoticias = 0
   
   // Obtener noticias por categorías de API
   for (const category of NEWS_API_CATEGORIES) {
@@ -103,15 +127,26 @@ const fetchNewsFromAPI = async () => {
       )
       
       if (!response.ok) {
+        if (response.status === 426) {
+          throw new Error('NewsAPI bloqueado en producción (error 426)')
+        }
         console.warn(`⚠️ Error en categoría ${category}: ${response.status}`)
+        hasErrors = true
         continue
       }
       
       const data = await response.json()
       
       if (data.articles && data.articles.length > 0) {
-        data.articles.forEach((article, index) => {
-          if (!article.title || article.title === '[Removed]') return
+        for (const [index, article] of data.articles.entries()) {
+          if (!article.title || article.title === '[Removed]') continue
+          
+          // VERIFICAR SI YA EXISTE EN FIREBASE
+          const existe = await newsExists(article.url)
+          if (existe) {
+            //console.log(`⏭️ Noticia ya existe: ${article.title.substring(0, 30)}...`)
+            continue
+          }
           
           let finalCategory = categoryMapping[category] || 'General'
           const detectedCategory = detectCategoryByContent(article.title, article.description)
@@ -138,13 +173,15 @@ const fetchNewsFromAPI = async () => {
           
           batch.set(newsRef, newsItem)
           allNews.push({ id: newsId, ...newsItem, publishedAt: article.publishedAt })
-        })
+          nuevasNoticias++
+        }
       }
       
       await new Promise(resolve => setTimeout(resolve, 500))
       
     } catch (catError) {
-      console.error(`Error en categoría ${category}:`, catError)
+      console.error(`Error en categoría ${category}:`, catError.message)
+      hasErrors = true
     }
   }
   
@@ -161,10 +198,16 @@ const fetchNewsFromAPI = async () => {
         const data = await response.json()
         
         if (data.articles && data.articles.length > 0) {
-          data.articles.forEach((article, index) => {
-            if (!article.title || article.title === '[Removed]') return
+          for (const [index, article] of data.articles.entries()) {
+            if (!article.title || article.title === '[Removed]') continue
+            if (allNews.some(n => n.url === article.url)) continue
             
-            if (allNews.some(n => n.url === article.url)) return
+            // VERIFICAR SI YA EXISTE EN FIREBASE
+            const existe = await newsExists(article.url)
+            if (existe) {
+              //console.log(`⏭️ Noticia ya existe (keyword): ${article.title.substring(0, 30)}...`)
+              continue
+            }
             
             const newsId = `news_${Date.now()}_keyword_${index}`
             const newsRef = doc(db, 'news', newsId)
@@ -185,82 +228,110 @@ const fetchNewsFromAPI = async () => {
             
             batch.set(newsRef, newsItem)
             allNews.push({ id: newsId, ...newsItem, publishedAt: article.publishedAt })
-          })
+            nuevasNoticias++
+          }
         }
       }
       
       await new Promise(resolve => setTimeout(resolve, 500))
       
     } catch (keywordError) {
-      console.error(`Error buscando ${catName}:`, keywordError)
+      console.error(`Error buscando ${catName}:`, keywordError.message)
+      hasErrors = true
     }
   }
   
-  // Guardar en Firestore si hay noticias nuevas
-  if (allNews.length > 0) {
+  // Guardar en Firestore solo si hay noticias NUEVAS
+  if (nuevasNoticias > 0) {
     await batch.commit()
-    //console.log(`✅ ${allNews.length} noticias guardadas en Firestore desde API`)
+    //console.log(`✅ ${nuevasNoticias} noticias NUEVAS guardadas en Firestore desde API`)
+  } else {
+    //console.log('📦 No hay noticias nuevas para guardar')
+  }
+  
+  // Si hubo errores pero tenemos noticias, las devolvemos igual
+  if (hasErrors && allNews.length > 0) {
+    //console.log('⚠️ Algunas categorías fallaron, pero se obtuvieron noticias parciales')
   }
   
   return allNews
 }
 
-// ===== FUNCIÓN PRINCIPAL MODIFICADA CON FALLBACK =====
-export const fetchNews = async (forceRefresh = false) => {
+// ===== FUNCIÓN PRINCIPAL: fetchNews =====
+export const fetchNews = async () => {
   //console.log('📰 Iniciando carga de noticias...')
   
-  // 1. Si no es forceRefresh, intentar obtener de Firebase primero
-  if (!forceRefresh) {
-    const firebaseNews = await fetchNewsFromFirebase()
-    if (firebaseNews.length > 0) {
-      //console.log('✅ Usando noticias existentes en Firebase')
-      return firebaseNews
+  // 1. INTENTAR CON NEWSAPI (si está configurada)
+  if (isApiConfigured()) {
+    try {
+      //console.log('🌐 NewsAPI configurada, intentando obtener noticias frescas...')
+      const apiNews = await fetchNewsFromAPI()
+      
+      if (apiNews.length > 0) {
+        //console.log(`✅ ${apiNews.length} noticias obtenidas desde NewsAPI (${apiNews.length} nuevas)`)
+        return apiNews
+      } else {
+        //console.log('⚠️ NewsAPI devolvió 0 noticias nuevas')
+      }
+    } catch (error) {
+      console.error('❌ Error en NewsAPI:', error.message)
     }
+  } else {
+    //console.log('⚠️ NewsAPI no está configurada correctamente')
   }
   
-  // 2. Si Firebase está vacío o forceRefresh=true, intentar con NewsAPI
-  try {
-    const apiNews = await fetchNewsFromAPI()
-    if (apiNews.length > 0) {
-      //console.log('✅ Noticias obtenidas desde NewsAPI')
-      return apiNews
-    }
-  } catch (error) {
-    console.error('❌ Error en NewsAPI:', error.message)
+  // 2. FALLBACK: Usar Firebase
+  //console.log('📦 Usando noticias desde Firebase como fallback...')
+  const firebaseNews = await fetchNewsFromFirebase()
+  
+  if (firebaseNews.length > 0) {
+    //console.log(`✅ ${firebaseNews.length} noticias cargadas desde Firebase`)
+    return firebaseNews
   }
   
-  // 3. Último intento: Firebase nuevamente (por si se pobló en otro momento)
-  //console.log('⚠️ NewsAPI falló, intentando Firebase nuevamente...')
-  const fallbackNews = await fetchNewsFromFirebase()
-  
-  if (fallbackNews.length > 0) {
-    //console.log('✅ Usando Firebase como fallback')
-    return fallbackNews
-  }
-  
-  // 4. Si todo falla, array vacío (la UI mostrará mensaje)
-  //console.log('❌ No hay noticias disponibles')
+  // 3. Si Firebase también está vacío
+  //console.log('❌ No hay noticias disponibles en Firebase')
   return []
 }
 
 // ===== FUNCIÓN PARA REFRESCAR MANUALMENTE =====
 export const refreshNews = async () => {
   //console.log('🔄 Forzando actualización desde NewsAPI...')
+  
+  if (!isApiConfigured()) {
+    //console.log('⚠️ API no configurada, no se puede refrescar')
+    return await fetchNewsFromFirebase()
+  }
+  
   try {
     const apiNews = await fetchNewsFromAPI()
     if (apiNews.length > 0) {
+      console.log(`✅ ${apiNews.length} noticias nuevas obtenidas desde API`)
       return apiNews
     }
   } catch (error) {
-    console.error('Error en refresh:', error)
+    console.error('Error en refresh:', error.message)
   }
   
-  // Si falla, devolver lo que haya en Firebase
+  // Si falla API, devolver Firebase
+  //console.log('📦 Refresh falló, usando Firebase...')
   return await fetchNewsFromFirebase()
 }
 
-// ===== RESTO DE FUNCIONES IGUAL =====
+// ===== FUNCIÓN PARA VERIFICAR CONFIGURACIÓN =====
+export const checkNewsConfig = () => {
+  //console.log('🔧 Verificación de configuración NewsAPI:')
+  //console.log(`   - URL: ${NEWS_API_URL ? '✓' : '✗'} ${NEWS_API_URL || 'no configurada'}`)
+  //console.log(`   - Key: ${NEWS_API_KEY ? '✓' : '✗'}`)
+  
+  if (NEWS_API_URL?.includes('undefined')) {
+    console.warn('   ⚠️ La URL contiene "undefined" - revisa .env.production')
+  }
+  
+  return isApiConfigured()
+}
 
+// ===== FUNCIÓN: Obtener noticia por ID =====
 export const fetchNewsById = async (newsId) => {
   try {
     const docRef = doc(db, 'news', newsId)
@@ -286,8 +357,7 @@ export const fetchNewsById = async (newsId) => {
   }
 }
 
-// ============= FUNCIONES DE COMENTARIOS =============
-
+// ===== FUNCIÓN: Obtener comentarios =====
 export const fetchComments = async (newsId) => {
   try {
     const commentsRef = collection(db, 'comments')
@@ -309,6 +379,7 @@ export const fetchComments = async (newsId) => {
   }
 }
 
+// ===== FUNCIÓN: Agregar comentario =====
 export const addComment = async (newsId, comment) => {
   try {
     const docRef = await addDoc(collection(db, 'comments'), {
@@ -324,8 +395,7 @@ export const addComment = async (newsId, comment) => {
   }
 }
 
-// ============= FUNCIONES AUXILIARES =============
-
+// ===== FUNCIÓN: Obtener noticias por categoría =====
 export const getNewsByCategory = async (category) => {
   try {
     const newsRef = collection(db, 'news')
@@ -348,6 +418,7 @@ export const getNewsByCategory = async (category) => {
   }
 }
 
+// ===== FUNCIÓN: Buscar noticias =====
 export const searchNews = async (searchTerm) => {
   try {
     const newsRef = collection(db, 'news')
