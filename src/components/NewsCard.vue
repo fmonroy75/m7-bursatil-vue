@@ -55,24 +55,26 @@ const props = defineProps({
   }
 })
 
-// Placeholder SVG local (no depende de servicios externos)
+// Proxy de imágenes (evita tracking prevention)
+const IMAGE_PROXY = 'https://images.weserv.nl/?url='
+
+// Placeholder SVG local
 const placeholderImage = 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'400\' height=\'300\' viewBox=\'0 0 400 300\'%3E%3Crect width=\'400\' height=\'300\' fill=\'%232d3748\'/%3E%3Ctext x=\'50%25\' y=\'50%25\' dominant-baseline=\'middle\' text-anchor=\'middle\' fill=\'%239ca3af\' font-size=\'24\' font-family=\'Arial\'%3ESin imagen%3C/text%3E%3C/svg%3E'
 
-// Estado reactivo para la imagen
 const imageError = ref(false)
 
-// Computed para la fuente de la imagen
+// URL con proxy
 const imageSrc = computed(() => {
   if (imageError.value || !props.news.imageUrl) {
     return placeholderImage
   }
-  return props.news.imageUrl
+  const encodedUrl = encodeURIComponent(props.news.imageUrl)
+  return `${IMAGE_PROXY}${encodedUrl}&w=400&h=300&fit=cover`
 })
 
-// Manejador de error de imagen
 const handleImageError = () => {
   imageError.value = true
-  console.log(`🖼️ Imagen falló para: ${props.news.title.substring(0, 30)}...`)
+  console.log('🖼️ Imagen falló, usando placeholder')
 }
 
 const formatDate = (date) => {
