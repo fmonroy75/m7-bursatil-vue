@@ -477,7 +477,6 @@ export const searchNews = async (searchTerm) => {
 }*/
 
 // src/services/newsApi.js
-// src/services/newsApi.js
 import { db } from './firebase'
 import {
   collection,
@@ -495,76 +494,41 @@ import {
   deleteDoc
 } from 'firebase/firestore'
 
-// Configuración GNews
-const GNEWS_API_KEY = import.meta.env.VITE_GNEWS_API_KEY
-const GNEWS_API_URL = import.meta.env.VITE_GNEWS_API_URL
+const API_KEY = import.meta.env.VITE_NEWSDATA_API_KEY
+const API_URL = import.meta.env.VITE_NEWSDATA_API_URL
 
-// Proxy CORS gratuito
-const PROXY_URL = 'https://api.allorigins.win/raw?url='
-
-// Configuración NewsAPI.in como fallback
-const NEWSAPI_IN_URL = 'https://saurav.tech/NewsAPI'
-
-// Mapeo de categorías GNews a nuestras categorías
-const GNEWS_CATEGORIES = [
-  'business',      // → Empresas
-  'technology',    // → Tecnología
-  'science',       // → Ciencia
-  'general'        // → General
-]
-
-// Términos de búsqueda para categorías específicas
-const CATEGORY_KEYWORDS = {
-  'Economía': ['economy', 'economics', 'inflation', 'gdp', 'interest rates', 'federal reserve', 'banco central'],
-  'Política': ['politics', 'government', 'congress', 'senate', 'election', 'policy', 'legislation'],
-  'Mercados': ['market', 'stock', 'nasdaq', 'dow jones', 'sp500', 'wall street']
-}
-
-// Mapeo de categorías
+// Mapeo de categorías de NewsData a nuestras categorías
 const categoryMapping = {
   'business': 'Empresas',
   'technology': 'Tecnología',
-  'general': 'General',
-  'economy': 'Economía',
-  'politics': 'Política',
-  'markets': 'Mercados'
+  'science': 'Ciencia',
+  'top': 'General',
+  'world': 'Internacional'
 }
 
-// ===== FUNCIÓN: Detectar categoría por contenido =====
-const detectCategoryByContent = (title, description) => {
-  const text = `${title} ${description || ''}`.toLowerCase()
-  
-  if (CATEGORY_KEYWORDS['Economía'].some(keyword => text.includes(keyword.toLowerCase()))) {
-    return 'Economía'
-  }
-  
-  if (CATEGORY_KEYWORDS['Política'].some(keyword => text.includes(keyword.toLowerCase()))) {
-    return 'Política'
-  }
-  
-  if (CATEGORY_KEYWORDS['Mercados'].some(keyword => text.includes(keyword.toLowerCase()))) {
-    return 'Mercados'
-  }
-  
-  return null
-}
-
-// ===== FUNCIÓN: Verificar configuración de GNews =====
-const isGNewsConfigured = () => {
-  return !!(
-    GNEWS_API_KEY && 
-    GNEWS_API_URL && 
-    !GNEWS_API_KEY.includes('undefined') && 
-    !GNEWS_API_URL.includes('undefined') &&
-    GNEWS_API_KEY !== 'tu_api_key_aqui'
+// ===== FUNCIÓN PARA VERIFICAR CONFIGURACIÓN =====
+export const checkNewsConfig = () => {
+  const isOk = !!(
+    import.meta.env.VITE_NEWSDATA_API_KEY && 
+    !import.meta.env.VITE_NEWSDATA_API_KEY.includes('undefined') &&
+    import.meta.env.VITE_NEWSDATA_API_KEY !== 'tu_key_aqui'
   )
+  
+ // console.log('🔧 Verificación de configuración:')
+ // console.log(`   - NewsData.io: ${isOk ? '✓' : '✗'}`)
+ // console.log(`   - API Key: ${import.meta.env.VITE_NEWSDATA_API_KEY ? 'presente' : 'ausente'}`)
+  
+  if (!isOk) {
+    console.warn('⚠️ Agrega VITE_NEWSDATA_API_KEY válida en .env')
+  }
+  
+  return isOk
 }
 
-// ===== FUNCIÓN: Verificar si una noticia ya existe en Firebase =====
+// ===== FUNCIÓN: Verificar duplicados =====
 const newsExists = async (url) => {
   try {
-    const newsRef = collection(db, 'news')
-    const q = query(newsRef, where('url', '==', url))
+    const q = query(collection(db, 'news'), where('url', '==', url))
     const snapshot = await getDocs(q)
     return !snapshot.empty
   } catch (error) {
@@ -573,12 +537,11 @@ const newsExists = async (url) => {
   }
 }
 
-// ===== FUNCIÓN: Obtener noticias desde Firebase =====
-const fetchNewsFromFirebase = async () => {
+// ===== FUNCIÓN: Obtener desde Firebase =====
+export const fetchNewsFromFirebase = async () => {
   try {
-    console.log('📰 Cargando noticias desde Firebase...')
-    const newsRef = collection(db, 'news')
-    const q = query(newsRef, orderBy('publishedAt', 'desc'), limit(50))
+   // console.log('📰 Cargando noticias desde Firebase...')
+    const q = query(collection(db, 'news'), orderBy('publishedAt', 'desc'), limit(50))
     const snapshot = await getDocs(q)
     
     const news = snapshot.docs.map(doc => ({
@@ -587,7 +550,7 @@ const fetchNewsFromFirebase = async () => {
       publishedAt: doc.data().publishedAt?.toDate?.() || doc.data().publishedAt
     }))
     
-    console.log(`✅ ${news.length} noticias cargadas desde Firebase`)
+    //console.log(`✅ ${news.length} noticias cargadas desde Firebase`)
     return news
   } catch (error) {
     console.error('Error cargando desde Firebase:', error)
@@ -595,25 +558,25 @@ const fetchNewsFromFirebase = async () => {
   }
 }
 
-// ===== FUNCIÓN: Obtener noticias desde GNews con proxy CORS =====
-const fetchFromGNews = async () => {
-  console.log('🌐 Intentando obtener noticias desde GNews (vía proxy)...')
+// ===== FUNCIÓN: Obtener desde NewsData.io =====
+export const fetchFromNewsData = async () => {
+  //console.log('🌐 Obteniendo noticias desde NewsData.io...')
   
-  if (!isGNewsConfigured()) {
-    throw new Error('GNews no configurado')
+  if (!API_KEY || API_KEY.includes('undefined') || API_KEY === 'tu_key_aqui') {
+    throw new Error('API no configurada correctamente')
   }
 
   const allNews = []
   const batch = writeBatch(db)
-  let nuevasNoticias = 0
+  //const categories = ['business', 'technology', 'science', 'health', 'entertainment', 'sports', 'top']
+  const categories = ['business', 'technology', 'science',  'top']
   
-  for (const category of GNEWS_CATEGORIES) {
+  for (const category of categories) {
     try {
-      // Construir URL de GNews
-      const gnewsUrl = `${GNEWS_API_URL}/top-headlines?category=${category}&lang=en&country=us&max=10&apikey=${GNEWS_API_KEY}`
-      const proxyUrl = `${PROXY_URL}${encodeURIComponent(gnewsUrl)}`
+      const url = `${API_URL}/news?apikey=${API_KEY}&category=${category}&language=en&size=10`
+      //console.log(`📡 Solicitando categoría: ${category}`)
       
-      const response = await fetch(proxyUrl)
+      const response = await fetch(url)
       
       if (!response.ok) {
         console.warn(`⚠️ Error en categoría ${category}: ${response.status}`)
@@ -622,53 +585,44 @@ const fetchFromGNews = async () => {
       
       const data = await response.json()
       
-      // AllOrigins devuelve el contenido en data.contents
-      let articles
-      try {
-        articles = data?.contents ? JSON.parse(data.contents) : data
-      } catch (e) {
-        console.warn(`⚠️ Error parseando JSON para ${category}:`, e)
-        continue
-      }
-      
-      if (articles.articles && articles.articles.length > 0) {
-        for (const [index, article] of articles.articles.entries()) {
-          if (!article.title || article.title === '[Removed]') continue
+      if (data.results && data.results.length > 0) {
+        for (const article of data.results) {
+          if (!article.title) continue
           
           // Verificar duplicados
-          const existe = await newsExists(article.url)
+          const existe = await newsExists(article.link)
           if (existe) continue
           
-          let finalCategory = categoryMapping[category] || 'General'
-          const detectedCategory = detectCategoryByContent(article.title, article.description)
-          if (detectedCategory) {
-            finalCategory = detectedCategory
-          }
-          
-          const newsId = `gnews_${Date.now()}_${category}_${index}`
+          const newsId = `newsdata_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
           const newsRef = doc(db, 'news', newsId)
+          
+          // Determinar categoría final
+          let finalCategory = 'General'
+          if (article.category && article.category.length > 0) {
+            const cat = article.category[0].toLowerCase()
+            finalCategory = categoryMapping[cat] || 'General'
+          }
           
           const newsItem = {
             title: article.title,
             summary: article.description || 'Sin descripción',
             content: article.content || article.description || 'Contenido no disponible',
-            imageUrl: article.image || article.urlToImage || null,
-            author: article.source?.name || article.author || 'Autor Desconocido',
-            source: article.source?.name || 'GNews',
-            url: article.url,
+            imageUrl: article.image_url || null,
+            author: article.creator?.join(', ') || 'Autor Desconocido',
+            source: article.source_id || 'NewsData.io',
+            url: article.link,
             category: finalCategory,
-            publishedAt: Timestamp.fromDate(new Date(article.publishedAt)),
+            publishedAt: Timestamp.fromDate(new Date(article.pubDate)),
             views: 0,
             createdAt: Timestamp.now()
           }
           
           batch.set(newsRef, newsItem)
-          allNews.push({ id: newsId, ...newsItem, publishedAt: article.publishedAt })
-          nuevasNoticias++
+          allNews.push({ id: newsId, ...newsItem, publishedAt: article.pubDate })
         }
       }
       
-      // Pausa entre categorías para no saturar
+      // Pequeña pausa para no saturar la API
       await new Promise(resolve => setTimeout(resolve, 500))
       
     } catch (error) {
@@ -676,79 +630,11 @@ const fetchFromGNews = async () => {
     }
   }
   
-  // Guardar en Firestore
-  if (nuevasNoticias > 0) {
-    await batch.commit()
-    console.log(`✅ ${nuevasNoticias} noticias nuevas guardadas desde GNews (vía proxy)`)
-  }
-  
-  return allNews
-}
-
-// ===== FUNCIÓN: Fallback a NewsAPI.in =====
-const fetchFromNewsAPIIn = async () => {
-  console.log('🔄 Fallback: Intentando NewsAPI.in...')
-  
-  const allNews = []
-  const batch = writeBatch(db)
-  const categories = ['business', 'technology', 'general', 'science', 'health', 'entertainment', 'sports']
-  
-  for (const category of categories) {
-    try {
-      const response = await fetch(
-        `${NEWSAPI_IN_URL}/top-headlines/category/${category}/us.json`
-      )
-      
-      if (!response.ok) continue
-      
-      const data = await response.json()
-      
-      if (data.articles && data.articles.length > 0) {
-        for (const [index, article] of data.articles.entries()) {
-          if (!article.title || article.title === '[Removed]') continue
-          
-          const existe = await newsExists(article.url)
-          if (existe) continue
-          
-          let finalCategory = categoryMapping[category] || 'General'
-          const detectedCategory = detectCategoryByContent(article.title, article.description)
-          if (detectedCategory) {
-            finalCategory = detectedCategory
-          }
-          
-          const newsId = `newsapiin_${Date.now()}_${category}_${index}`
-          const newsRef = doc(db, 'news', newsId)
-          
-          const newsItem = {
-            title: article.title,
-            summary: article.description || 'Sin descripción',
-            content: article.content || article.description || 'Contenido no disponible',
-            imageUrl: article.urlToImage || null,
-            author: article.author || 'Autor Desconocido',
-            source: article.source?.name || 'NewsAPI.in',
-            url: article.url,
-            category: finalCategory,
-            publishedAt: Timestamp.fromDate(new Date(article.publishedAt)),
-            views: 0,
-            createdAt: Timestamp.now()
-          }
-          
-          batch.set(newsRef, newsItem)
-          allNews.push({ id: newsId, ...newsItem, publishedAt: article.publishedAt })
-        }
-      }
-      
-      // Pausa entre categorías
-      await new Promise(resolve => setTimeout(resolve, 300))
-      
-    } catch (error) {
-      console.error(`Error en categoría ${category}:`, error)
-    }
-  }
-  
   if (allNews.length > 0) {
     await batch.commit()
-    console.log(`✅ ${allNews.length} noticias desde NewsAPI.in`)
+    //console.log(`✅ ${allNews.length} noticias guardadas desde NewsData.io`)
+  } else {
+    //console.log('📦 No hay noticias nuevas para guardar')
   }
   
   return allNews
@@ -756,78 +642,63 @@ const fetchFromNewsAPIIn = async () => {
 
 // ===== FUNCIÓN PRINCIPAL =====
 export const fetchNews = async () => {
-  console.log('📰 Iniciando carga de noticias...')
+  //console.log('📰 Iniciando carga de noticias...')
   
-  // 1. Intentar GNews con proxy (más actualizado)
-  if (isGNewsConfigured()) {
+  // 1. Verificar configuración
+  const configOk = checkNewsConfig()
+  
+  // 2. Intentar NewsData.io si está configurado
+  if (configOk) {
     try {
-      console.log('🌐 Usando GNews con proxy CORS...')
-      const gnews = await fetchFromGNews()
-      if (gnews.length > 0) {
-        console.log(`✅ ${gnews.length} noticias frescas desde GNews`)
-        return gnews
+    //  console.log('🌐 Usando NewsData.io como fuente principal...')
+      const news = await fetchFromNewsData()
+      if (news.length > 0) {
+      //  console.log(`✅ ${news.length} noticias obtenidas desde NewsData.io`)
+        return news
+      } else {
+        //console.log('⚠️ NewsData.io devolvió 0 noticias')
       }
     } catch (error) {
-      console.error('❌ GNews falló:', error.message)
+      console.error('❌ NewsData.io falló:', error.message)
     }
   } else {
-    console.log('⚠️ GNews no configurado correctamente')
+    //console.log('⚠️ NewsData.io no está configurado correctamente')
   }
   
-  // 2. Fallback a NewsAPI.in (noticias viejas pero funcionan)
-  try {
-    console.log('🔄 Fallback: NewsAPI.in...')
-    const newsapiin = await fetchFromNewsAPIIn()
-    if (newsapiin.length > 0) {
-      console.log(`✅ ${newsapiin.length} noticias desde NewsAPI.in`)
-      return newsapiin
-    }
-  } catch (error) {
-    console.error('❌ NewsAPI.in falló:', error)
-  }
-  
-  // 3. Último recurso: Firebase
+  // 3. Fallback a Firebase
+ // console.log('📦 Usando Firebase como fallback...')
   const firebaseNews = await fetchNewsFromFirebase()
   if (firebaseNews.length > 0) {
-    console.log(`✅ ${firebaseNews.length} noticias desde Firebase`)
+   // console.log(`✅ ${firebaseNews.length} noticias desde Firebase`)
     return firebaseNews
   }
   
-  console.log('❌ No hay noticias disponibles')
+  // 4. Si todo falla
+  //console.log('❌ No hay noticias disponibles')
   return []
 }
 
-// ===== REFRESH MANUAL =====
+// ===== FUNCIÓN PARA REFRESCAR MANUALMENTE =====
 export const refreshNews = async () => {
-  console.log('🔄 Forzando actualización...')
+  //console.log('🔄 Forzando actualización desde NewsData.io...')
   
-  // Intentar GNews primero
-  if (isGNewsConfigured()) {
+  const configOk = checkNewsConfig()
+  
+  if (configOk) {
     try {
-      const gnews = await fetchFromGNews()
-      if (gnews.length > 0) return gnews
+      const news = await fetchFromNewsData()
+      if (news.length > 0) {
+    //    console.log(`✅ ${news.length} noticias actualizadas`)
+        return news
+      }
     } catch (error) {
-      console.error('Error en refresh:', error)
+      console.error('Error en refresh:', error.message)
     }
   }
   
   // Si falla, devolver Firebase
+  //console.log('📦 Refresh falló, usando Firebase...')
   return await fetchNewsFromFirebase()
-}
-
-// ===== FUNCIÓN PARA VERIFICAR CONFIGURACIÓN =====
-export const checkNewsConfig = () => {
-  console.log('🔧 Verificación de configuración:')
-  console.log(`   - GNews: ${isGNewsConfigured() ? '✓' : '✗'}`)
-  console.log(`   - GNews Key: ${GNEWS_API_KEY ? 'presente' : 'ausente'}`)
-  console.log(`   - GNews URL: ${GNEWS_API_URL ? 'presente' : 'ausente'}`)
-  console.log(`   - NewsAPI.in: Disponible siempre`)
-  
-  if (GNEWS_API_KEY?.includes('undefined')) {
-    console.warn('   ⚠️ GNews API key contiene "undefined" - revisa .env')
-  }
-  
-  return isGNewsConfigured()
 }
 
 // ===== FUNCIÓN: Obtener noticia por ID =====
@@ -839,6 +710,7 @@ export const fetchNewsById = async (newsId) => {
     if (docSnap.exists()) {
       const data = docSnap.data()
       
+      // Incrementar contador de vistas
       await updateDoc(docRef, {
         views: (data.views || 0) + 1
       })
@@ -930,8 +802,7 @@ export const searchNews = async (searchTerm) => {
         publishedAt: doc.data().publishedAt?.toDate?.() || doc.data().publishedAt
       }))
       .filter(item => 
-        item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.summary.toLowerCase().includes(searchTerm.toLowerCase())
+        item.title?.toLowerCase().includes(searchTerm.toLowerCase())
       )
       .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
       .slice(0, 20)
@@ -943,7 +814,7 @@ export const searchNews = async (searchTerm) => {
   }
 }
 
-// ===== FUNCIÓN: Eliminar noticia =====
+// ===== FUNCIÓN: Eliminar noticia (útil para limpieza) =====
 export const deleteNews = async (newsId) => {
   try {
     await deleteDoc(doc(db, 'news', newsId))

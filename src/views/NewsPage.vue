@@ -146,8 +146,9 @@ import { useNewsHistoryStore } from '@/stores/newsHistory'
 import { 
   fetchNews, 
   refreshNews, 
-  getNewsByCategory,  // ← Esta es la que falta
-  checkNewsConfig 
+  checkNewsConfig,
+  getNewsByCategory,
+  searchNews 
 } from '@/services/newsApi'
 import { fetchMarketData } from '@/services/alphaVantageApi'
 import NewsCard from '@/components/NewsCard.vue'
