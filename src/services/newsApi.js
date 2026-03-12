@@ -43,13 +43,16 @@ const categoryMapping = {
 }
 
 // ===== FUNCIÓN: Verificar configuración de API =====
-const isApiConfigured = () => {
+/*const isApiConfigured = () => {
   return !!(
     NEWS_API_KEY && 
     NEWS_API_URL && 
     !NEWS_API_KEY.includes('undefined') && 
     !NEWS_API_URL.includes('undefined')
   )
+}*/
+const isApiConfigured = () => {
+  return true // Siempre disponible
 }
 
 // ===== FUNCIÓN: Detectar categoría por contenido =====
@@ -123,7 +126,8 @@ const fetchNewsFromAPI = async () => {
   for (const category of NEWS_API_CATEGORIES) {
     try {
       const response = await fetch(
-        `${NEWS_API_URL}/top-headlines?country=us&category=${category}&pageSize=10&apiKey=${NEWS_API_KEY}`
+        //`${NEWS_API_URL}/top-headlines?country=us&category=${category}&pageSize=10&apiKey=${NEWS_API_KEY}`
+        `${NEWS_API_URL}/top-headlines/category/${category}/us.json`
       )
       
       if (!response.ok) {
@@ -186,7 +190,35 @@ const fetchNewsFromAPI = async () => {
   }
   
   // Búsquedas adicionales por palabras clave
-  for (const [catName, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+  // Simplificación de fetchNewsFromAPI
+const fetchNewsFromAPI = async () => {
+  console.log('🌐 Intentando obtener noticias desde NewsAPI.in...')
+  
+  const allNews = []
+  const batch = writeBatch(db)
+  const BASE_URL = 'https://saurav.tech/NewsAPI'
+  
+  for (const category of NEWS_API_CATEGORIES) {
+    try {
+      const response = await fetch(
+        `${BASE_URL}/top-headlines/category/${category}/us.json`
+      )
+      
+      if (!response.ok) continue
+      
+      const data = await response.json()
+      
+      if (data.articles && data.articles.length > 0) {
+        // ... mismo procesamiento que antes ...
+      }
+    } catch (error) {
+      console.error(`Error en categoría ${category}:`, error)
+    }
+  }
+  
+  return allNews
+}
+  /*for (const [catName, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
     try {
       const keyword = keywords[0]
       
@@ -239,7 +271,7 @@ const fetchNewsFromAPI = async () => {
       console.error(`Error buscando ${catName}:`, keywordError.message)
       hasErrors = true
     }
-  }
+  }*/
   
   // Guardar en Firestore solo si hay noticias NUEVAS
   if (nuevasNoticias > 0) {
