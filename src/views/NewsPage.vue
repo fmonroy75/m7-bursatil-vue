@@ -142,7 +142,13 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useNewsHistoryStore } from '@/stores/newsHistory'
-import { fetchNews, getNewsByCategory } from '@/services/newsApi'
+//import { fetchNews, getNewsByCategory } from '@/services/newsApi'
+import { 
+  fetchNews, 
+  refreshNews, 
+  getNewsByCategory,  // ← Esta es la que falta
+  checkNewsConfig 
+} from '@/services/newsApi'
 import { fetchMarketData } from '@/services/alphaVantageApi'
 import NewsCard from '@/components/NewsCard.vue'
 import { NEWS_CATEGORIES } from '@/config/constants'
