@@ -499,6 +499,9 @@ import {
 const GNEWS_API_KEY = import.meta.env.VITE_GNEWS_API_KEY
 const GNEWS_API_URL = import.meta.env.VITE_GNEWS_API_URL
 
+// Proxy CORS gratuito
+const PROXY_URL = 'https://api.allorigins.win/raw?url='
+
 // Configuración NewsAPI.in como fallback
 const NEWSAPI_IN_URL = 'https://saurav.tech/NewsAPI'
 
@@ -507,9 +510,6 @@ const GNEWS_CATEGORIES = [
   'business',      // → Empresas
   'technology',    // → Tecnología
   'science',       // → Ciencia
-  'health',        // → Salud
-  'entertainment', // → Entretenimiento
-  'sports',        // → Deportes
   'general'        // → General
 ]
 
@@ -524,10 +524,6 @@ const CATEGORY_KEYWORDS = {
 const categoryMapping = {
   'business': 'Empresas',
   'technology': 'Tecnología',
-  'science': 'Ciencia',
-  'health': 'Salud',
-  'entertainment': 'Entretenimiento',
-  'sports': 'Deportes',
   'general': 'General',
   'economy': 'Economía',
   'politics': 'Política',
@@ -599,9 +595,9 @@ const fetchNewsFromFirebase = async () => {
   }
 }
 
-// ===== FUNCIÓN: Obtener noticias desde GNews =====
+// ===== FUNCIÓN: Obtener noticias desde GNews con proxy CORS =====
 const fetchFromGNews = async () => {
-  console.log('🌐 Intentando obtener noticias desde GNews...')
+  console.log('🌐 Intentando obtener noticias desde GNews (vía proxy)...')
   
   if (!isGNewsConfigured()) {
     throw new Error('GNews no configurado')
@@ -613,8 +609,11 @@ const fetchFromGNews = async () => {
   
   for (const category of GNEWS_CATEGORIES) {
     try {
-      const url = `${GNEWS_API_URL}/top-headlines?category=${category}&lang=en&country=us&max=10&apikey=${GNEWS_API_KEY}`
-      const response = await fetch(url)
+      // Construir URL de GNews
+      const gnewsUrl = `${GNEWS_API_URL}/top-headlines?category=${category}&lang=en&country=us&max=10&apikey=${GNEWS_API_KEY}`
+      const proxyUrl = `${PROXY_URL}${encodeURIComponent(gnewsUrl)}`
+      
+      const response = await fetch(proxyUrl)
       
       if (!response.ok) {
         console.warn(`⚠️ Error en categoría ${category}: ${response.status}`)
@@ -623,8 +622,17 @@ const fetchFromGNews = async () => {
       
       const data = await response.json()
       
-      if (data.articles && data.articles.length > 0) {
-        for (const [index, article] of data.articles.entries()) {
+      // AllOrigins devuelve el contenido en data.contents
+      let articles
+      try {
+        articles = data?.contents ? JSON.parse(data.contents) : data
+      } catch (e) {
+        console.warn(`⚠️ Error parseando JSON para ${category}:`, e)
+        continue
+      }
+      
+      if (articles.articles && articles.articles.length > 0) {
+        for (const [index, article] of articles.articles.entries()) {
           if (!article.title || article.title === '[Removed]') continue
           
           // Verificar duplicados
@@ -644,7 +652,7 @@ const fetchFromGNews = async () => {
             title: article.title,
             summary: article.description || 'Sin descripción',
             content: article.content || article.description || 'Contenido no disponible',
-            imageUrl: article.image || null,
+            imageUrl: article.image || article.urlToImage || null,
             author: article.source?.name || article.author || 'Autor Desconocido',
             source: article.source?.name || 'GNews',
             url: article.url,
@@ -660,8 +668,8 @@ const fetchFromGNews = async () => {
         }
       }
       
-      // Pequeña pausa para no saturar
-      await new Promise(resolve => setTimeout(resolve, 200))
+      // Pausa entre categorías para no saturar
+      await new Promise(resolve => setTimeout(resolve, 500))
       
     } catch (error) {
       console.error(`Error en categoría ${category}:`, error.message)
@@ -671,7 +679,7 @@ const fetchFromGNews = async () => {
   // Guardar en Firestore
   if (nuevasNoticias > 0) {
     await batch.commit()
-    console.log(`✅ ${nuevasNoticias} noticias nuevas guardadas desde GNews`)
+    console.log(`✅ ${nuevasNoticias} noticias nuevas guardadas desde GNews (vía proxy)`)
   }
   
   return allNews
@@ -683,7 +691,7 @@ const fetchFromNewsAPIIn = async () => {
   
   const allNews = []
   const batch = writeBatch(db)
-  const categories = ['business', 'technology', 'general']
+  const categories = ['business', 'technology', 'general', 'science', 'health', 'entertainment', 'sports']
   
   for (const category of categories) {
     try {
@@ -703,6 +711,11 @@ const fetchFromNewsAPIIn = async () => {
           if (existe) continue
           
           let finalCategory = categoryMapping[category] || 'General'
+          const detectedCategory = detectCategoryByContent(article.title, article.description)
+          if (detectedCategory) {
+            finalCategory = detectedCategory
+          }
+          
           const newsId = `newsapiin_${Date.now()}_${category}_${index}`
           const newsRef = doc(db, 'news', newsId)
           
@@ -724,8 +737,12 @@ const fetchFromNewsAPIIn = async () => {
           allNews.push({ id: newsId, ...newsItem, publishedAt: article.publishedAt })
         }
       }
+      
+      // Pausa entre categorías
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
     } catch (error) {
-      console.error('Error en NewsAPI.in:', error)
+      console.error(`Error en categoría ${category}:`, error)
     }
   }
   
@@ -741,9 +758,10 @@ const fetchFromNewsAPIIn = async () => {
 export const fetchNews = async () => {
   console.log('📰 Iniciando carga de noticias...')
   
-  // 1. Intentar GNews
+  // 1. Intentar GNews con proxy (más actualizado)
   if (isGNewsConfigured()) {
     try {
+      console.log('🌐 Usando GNews con proxy CORS...')
       const gnews = await fetchFromGNews()
       if (gnews.length > 0) {
         console.log(`✅ ${gnews.length} noticias frescas desde GNews`)
@@ -752,13 +770,16 @@ export const fetchNews = async () => {
     } catch (error) {
       console.error('❌ GNews falló:', error.message)
     }
+  } else {
+    console.log('⚠️ GNews no configurado correctamente')
   }
   
-  // 2. Fallback a NewsAPI.in
+  // 2. Fallback a NewsAPI.in (noticias viejas pero funcionan)
   try {
+    console.log('🔄 Fallback: NewsAPI.in...')
     const newsapiin = await fetchFromNewsAPIIn()
     if (newsapiin.length > 0) {
-      console.log(`✅ ${newsapiin.length} noticias desde NewsAPI.in (fallback)`)
+      console.log(`✅ ${newsapiin.length} noticias desde NewsAPI.in`)
       return newsapiin
     }
   } catch (error) {
@@ -798,6 +819,8 @@ export const refreshNews = async () => {
 export const checkNewsConfig = () => {
   console.log('🔧 Verificación de configuración:')
   console.log(`   - GNews: ${isGNewsConfigured() ? '✓' : '✗'}`)
+  console.log(`   - GNews Key: ${GNEWS_API_KEY ? 'presente' : 'ausente'}`)
+  console.log(`   - GNews URL: ${GNEWS_API_URL ? 'presente' : 'ausente'}`)
   console.log(`   - NewsAPI.in: Disponible siempre`)
   
   if (GNEWS_API_KEY?.includes('undefined')) {
@@ -920,7 +943,7 @@ export const searchNews = async (searchTerm) => {
   }
 }
 
-// ===== FUNCIÓN: Eliminar noticia (útil para limpieza) =====
+// ===== FUNCIÓN: Eliminar noticia =====
 export const deleteNews = async (newsId) => {
   try {
     await deleteDoc(doc(db, 'news', newsId))
